@@ -21,14 +21,14 @@
 }
 
 :root {
-  --background: #f7f7f4;
+  --background: #ffffff;
   --foreground: #121212;
   --muted: #ecece7;
   --muted-foreground: #676763;
   --border: #d6d6cf;
   --primary: #111111;
   --primary-foreground: #f7f7f4;
-  --card: #fbfbf9;
+  --card: #ffffff;
   --card-foreground: #121212;
   --accent: #e8e8e3;
   --accent-foreground: #121212;
@@ -52,28 +52,6 @@ body {
 button, input, textarea, select { font: inherit; }
 
 ::selection { background: #111; color: #fff; }
-
-.grid-surface {
-  background-image: linear-gradient(to right, rgba(18,18,18,.075) 1px, transparent 1px), linear-gradient(to bottom, rgba(18,18,18,.055) 1px, transparent 1px);
-  background-size: calc(100% / 12) 100%, 100% 38px;
-}
-
-.editorial-rule { border-color: #141414; }
-
-.caps-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-
-.focus-field:focus {
-  outline: 2px solid #111;
-  outline-offset: -2px;
-}
-
-.quiet-link { transition: opacity 160ms cubic-bezier(.23,1,.32,1); }
-.quiet-link:hover { opacity: .48; }
 
 @media (prefers-reduced-motion: no-preference) {
   .enter-up { animation: enter-up 260ms cubic-bezier(.23,1,.32,1) both; }

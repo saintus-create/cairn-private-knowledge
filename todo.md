@@ -14,3 +14,20 @@
 - [x] Add a model-optional answer layer that remains disabled by default so routine retrieval and testing do not consume model credits.
 - [x] Add database migrations, typed procedures, server and client tests, and meaningful empty, loading, error, and success states.
 - [x] Verify desktop and mobile layouts, run static checks and tests, and visually inspect all core screens before final delivery.
+- [x] Compare the current multi-pane collection workspace with the original Codex encyclopedia flow and identify unnecessary cognitive-load triggers.
+- [x] Redesign the primary experience around one calm next action, with configuration and source-management detail available only when requested.
+- [x] Validate the simplified interaction flow against the original Codex prototype before implementing the next interface revision.
+- [x] Replace the default multi-pane onboarding view with one centered command entry and a small set of contextual actions.
+- [x] Put website collection creation, scope preview, source management, profiles, and import progress behind progressive disclosure rather than on the default page.
+- [x] Preserve visible evidence boundaries and citations in results without exposing configuration until the user requests it.
+- [x] Make Codex infer whether a command is a question, a source request, or a collection request, so the user does not have to navigate setup workflows manually.
+- [x] Have Codex prepare website scope, sensible defaults, and an import proposal automatically, asking the user only to approve the selected source boundary.
+- [x] Surface maintenance and import progress as concise agent updates rather than recurring control-panel tasks.
+- [x] Make the pre-Enter state intentionally quiet: one centered floating black command bar with no visible setup workflow.
+- [x] Reveal results, source proposals, and any needed approval only after the user submits a natural-language command with Enter.
+- [x] Apply Assistant UI-style conversational continuity and ElevenLabs-style focused input patterns to the Codex command surface without reproducing their visual branding.
+- [x] Treat source proposals, import updates, citations, and related entries as compact conversation artifacts rather than permanent dashboard panels.
+- [x] Verify licensing and official distribution paths for Assistant UI and ElevenLabs UI before importing any genuine component source or package.
+- [x] Use permitted official components or source modules where they reduce implementation risk and preserve the single-bar Codex interaction model.
+- [x] Remove all persistent pre-Enter header controls so the floating command bar is the only interactive element before Codex is invoked.
+- [x] Add contextual expert-profile editing behind the post-Enter Sources view, keeping name, scope, audience, tone, answer mode, and optional synthesis off the landing screen.

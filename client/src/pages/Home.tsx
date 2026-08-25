@@ -1,276 +1,223 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
+import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/elevenlabs/conversation";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { collectionNameFromUrl, commandIntent, firstPublicUrl } from "@/lib/codexCommand";
 import { trpc } from "@/lib/trpc";
-import { answerModeDisclosure, sourceStatusLabel } from "@/lib/collectionUi";
-import { Check, ChevronRight, ExternalLink, FolderPlus, Loader2, RefreshCw, Search, ShieldCheck, Sparkles, X } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ArrowUp, BookOpen, Check, ChevronRight, ExternalLink, Globe2, Loader2, Plus, RefreshCw, Sparkles, X } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-type CollectionForm = {
-  name: string;
+type Answer = {
+  status: "evidence" | "insufficient-evidence";
+  collection: string;
+  answerMode: string;
+  answer: string;
+  citations: Array<{ id: number; title: string; url: string; headingPath: string; excerpt: string; score: number }>;
+  relatedEntries: Array<{ title: string; headingPath: string }>;
+  synthesized: boolean;
+};
+
+type Proposal = {
   rootUrl: string;
+  host: string;
+  name: string;
+  urls: Array<{ url: string; path: string }>;
+  estimatedPageCount: number;
+  robotsNotice: string;
+};
+
+type ProfileDraft = {
+  name: string;
   scope: string;
   audience: string;
   tone: string;
   answerMode: "extractive" | "source-backed" | "labeled-synthesis";
-  includePaths: string;
-  excludePaths: string;
-  pageLimit: number;
+  aiSynthesisEnabled: boolean;
 };
 
-const initialForm: CollectionForm = {
-  name: "",
-  rootUrl: "",
-  scope: "A bounded public reference collection.",
-  audience: "A careful general reader",
-  tone: "Clear, direct, and evidence-led",
-  answerMode: "extractive",
-  includePaths: "/",
-  excludePaths: "",
-  pageLimit: 12,
-};
+type ChatTurn =
+  | { id: string; kind: "user"; text: string }
+  | { id: string; kind: "note"; text: string }
+  | { id: string; kind: "answer"; question: string; answer: Answer }
+  | { id: string; kind: "proposal"; proposal: Proposal };
 
-function StatusDot({ status }: { status: string }) {
-  const color = status === "ready" || status === "complete" ? "bg-emerald-600" : status === "failed" ? "bg-red-600" : status === "unchanged" ? "bg-slate-400" : "bg-amber-500";
-  return <span className={`inline-block h-2 w-2 rounded-full ${color}`} aria-hidden />;
+const id = () => crypto.randomUUID();
+
+function CommandBar({ value, onChange, onSubmit, busy, compact = false, inputRef }: { value: string; onChange: (value: string) => void; onSubmit: () => void; busy: boolean; compact?: boolean; inputRef?: React.RefObject<HTMLInputElement | null> }) {
+  return <form onSubmit={(event) => { event.preventDefault(); onSubmit(); }} className={`flex w-full items-center gap-3 rounded-full bg-foreground text-background shadow-[0_18px_50px_rgba(0,0,0,.18)] transition-shadow focus-within:shadow-[0_20px_58px_rgba(0,0,0,.28)] ${compact ? "px-4 py-2" : "px-5 py-3"}`}>
+    <BookOpen className={`shrink-0 opacity-65 ${compact ? "h-4 w-4" : "h-5 w-5"}`} aria-hidden />
+    <input ref={inputRef} autoFocus value={value} onChange={(event) => onChange(event.target.value)} placeholder="Ask Codex or add a website" className={`min-w-0 flex-1 bg-transparent text-background outline-none placeholder:text-background/45 ${compact ? "text-sm" : "text-base"}`} />
+    <button type="submit" disabled={!value.trim() || busy} className={`flex shrink-0 items-center justify-center rounded-full bg-background text-foreground transition-transform active:scale-95 disabled:opacity-35 ${compact ? "h-7 w-7" : "h-9 w-9"}`} aria-label="Send command">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}</button>
+  </form>;
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return <label className="block border-t editorial-rule pt-3">
-    <span className="caps-label block text-foreground">{label}</span>
-    {hint && <span className="mt-1 block text-xs leading-4 text-muted-foreground">{hint}</span>}
-    <div className="mt-2">{children}</div>
-  </label>;
+function CitationList({ citations }: { citations: Answer["citations"] }) {
+  return <div className="mt-7 border-t border-border pt-4"><p className="text-xs text-muted-foreground">Sources</p><div className="mt-3 space-y-3">{citations.map((citation, index) => <div className="flex gap-3 text-sm" key={citation.id}><span className="font-mono text-xs text-muted-foreground">{index + 1}.</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline justify-between gap-2"><p className="font-medium">{citation.title}</p><a className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground" href={citation.url} target="_blank" rel="noreferrer">Open <ExternalLink className="h-3 w-3" /></a></div><p className="mt-1 text-xs text-muted-foreground">{citation.headingPath}</p><p className="mt-2 leading-6 text-muted-foreground">{citation.excerpt}</p></div></div>)}</div></div>;
 }
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
-  const [form, setForm] = useState<CollectionForm>(initialForm);
-  const [preview, setPreview] = useState<{ seedUrl: string; host: string; discoveredUrls: Array<{ url: string; path: string; selected: boolean }>; estimatedPageCount: number; robotsNotice: string } | null>(null);
-  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
-  const [activeId, setActiveId] = useState<number | null>(null);
-  const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<{ status: "evidence" | "insufficient-evidence"; collection: string; answerMode: string; answer: string; citations: Array<{ id: number; title: string; url: string; headingPath: string; excerpt: string; score: number }>; relatedEntries: Array<{ title: string; headingPath: string }>; synthesized: boolean } | null>(null);
+  const [command, setCommand] = useState("");
+  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [activeCollectionId, setActiveCollectionId] = useState<number | null>(null);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileDraft, setProfileDraft] = useState<ProfileDraft>({ name: "", scope: "", audience: "", tone: "", answerMode: "extractive", aiSynthesisEnabled: false });
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const activeCollectionInput = useMemo(() => ({ collectionId: activeId ?? 0 }), [activeId]);
-  const collectionsQuery = trpc.collections.list.useQuery(undefined, { enabled: isAuthenticated });
-  const detailQuery = trpc.collections.get.useQuery(activeCollectionInput, { enabled: isAuthenticated && activeId !== null });
-  const previewMutation = trpc.collections.preview.useMutation();
-  const createMutation = trpc.collections.create.useMutation();
-  const importMutation = trpc.collections.startImport.useMutation();
-  const continueMutation = trpc.collections.continueImport.useMutation();
-  const refreshMutation = trpc.collections.refresh.useMutation();
-  const answerMutation = trpc.collections.answer.useMutation();
-  const profileMutation = trpc.collections.updateProfile.useMutation();
+  const activeInput = useMemo(() => ({ collectionId: activeCollectionId ?? 0 }), [activeCollectionId]);
+  const collections = trpc.collections.list.useQuery(undefined, { enabled: isAuthenticated });
+  const detail = trpc.collections.get.useQuery(activeInput, { enabled: isAuthenticated && activeCollectionId !== null });
+  const preview = trpc.collections.preview.useMutation();
+  const create = trpc.collections.create.useMutation();
+  const startImport = trpc.collections.startImport.useMutation();
+  const continueImport = trpc.collections.continueImport.useMutation();
+  const answer = trpc.collections.answer.useMutation();
+  const refresh = trpc.collections.refresh.useMutation();
+  const updateProfile = trpc.collections.updateProfile.useMutation();
   const utils = trpc.useUtils();
+  const busy = preview.isPending || create.isPending || startImport.isPending || continueImport.isPending || refresh.isPending || updateProfile.isPending || answer.isPending;
+  const awake = turns.length > 0;
 
   useEffect(() => {
-    if (!activeId && collectionsQuery.data?.[0]) setActiveId(collectionsQuery.data[0].id);
-  }, [activeId, collectionsQuery.data]);
+    if (!activeCollectionId && collections.data?.[0]) setActiveCollectionId(collections.data[0].id);
+  }, [activeCollectionId, collections.data]);
 
   useEffect(() => {
-    const collection = detailQuery.data?.collection;
+    const collection = detail.data?.collection;
     if (!collection) return;
-    setForm({
-      name: collection.name,
-      rootUrl: collection.rootUrl,
-      scope: collection.scope,
-      audience: collection.audience,
-      tone: collection.tone,
-      answerMode: collection.answerMode,
-      includePaths: collection.includePaths,
-      excludePaths: collection.excludePaths,
-      pageLimit: collection.pageLimit,
-    });
-  }, [detailQuery.data?.collection]);
+    setProfileDraft({ name: collection.name, scope: collection.scope, audience: collection.audience, tone: collection.tone, answerMode: collection.answerMode, aiSynthesisEnabled: collection.aiSynthesisEnabled });
+  }, [detail.data?.collection]);
 
-  function updateForm<K extends keyof CollectionForm>(key: K, value: CollectionForm[K]) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
+  function append(turn: ChatTurn) { setTurns((current) => [...current, turn]); }
 
-  async function previewScope(event: FormEvent) {
-    event.preventDefault();
+  async function interpretCommand() {
+    const text = command.trim();
+    if (!text || busy) return;
+    if (!isAuthenticated) { startLogin(); return; }
+    setCommand("");
+    append({ id: id(), kind: "user", text });
+    const intent = commandIntent(text);
+    const website = firstPublicUrl(text);
+    if (intent === "collection") {
+      setSourcesOpen(true);
+      append({ id: id(), kind: "note", text: "Codex opened your sources. You can inspect a collection or ask it to refresh when you are ready." });
+      return;
+    }
+    if (intent === "source" && website) {
+      try {
+        const scope = await preview.mutateAsync({ rootUrl: website, includePaths: "/", excludePaths: "/login, /account, /privacy, /terms", pageLimit: 12 });
+        append({ id: id(), kind: "proposal", proposal: { rootUrl: website, host: scope.host, name: collectionNameFromUrl(website), urls: scope.discoveredUrls.map((item) => ({ url: item.url, path: item.path })), estimatedPageCount: scope.estimatedPageCount, robotsNotice: scope.robotsNotice } });
+      } catch (error) {
+        append({ id: id(), kind: "note", text: error instanceof Error ? error.message : "Codex could not inspect that website." });
+      }
+      return;
+    }
+    const targetCollection = activeCollectionId ?? collections.data?.[0]?.id;
+    if (!targetCollection) {
+      append({ id: id(), kind: "note", text: "Codex needs a source collection first. Paste a public website URL and it will prepare the import for you." });
+      return;
+    }
     try {
-      const result = await previewMutation.mutateAsync({ rootUrl: form.rootUrl, includePaths: form.includePaths, excludePaths: form.excludePaths, pageLimit: form.pageLimit });
-      setPreview(result);
-      setSelectedUrls(result.discoveredUrls.map((item) => item.url));
-      toast.success("Scope preview prepared.");
+      const result = await answer.mutateAsync({ collectionId: targetCollection, question: text, useOptionalSynthesis: detail.data?.collection.aiSynthesisEnabled ?? false });
+      append({ id: id(), kind: "answer", question: text, answer: result });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to preview this website.");
+      append({ id: id(), kind: "note", text: error instanceof Error ? error.message : "Codex could not complete that lookup." });
     }
   }
 
-  async function createAndImport() {
-    if (!preview || !selectedUrls.length) return;
+  async function approveProposal(proposal: Proposal) {
     try {
-      const created = await createMutation.mutateAsync(form);
-      setActiveId(created.collectionId);
-      await importMutation.mutateAsync({ collectionId: created.collectionId, urls: selectedUrls });
+      const created = await create.mutateAsync({ name: proposal.name, rootUrl: proposal.rootUrl, scope: `A bounded reference collection from ${proposal.host}.`, audience: "A careful general reader", tone: "Clear, direct, and evidence-led", answerMode: "extractive", includePaths: "/", excludePaths: "/login, /account, /privacy, /terms", pageLimit: Math.min(12, proposal.urls.length || 1) });
+      setActiveCollectionId(created.collectionId);
+      let batch = await startImport.mutateAsync({ collectionId: created.collectionId, urls: proposal.urls.slice(0, 12).map((item) => item.url) });
+      let processed = batch.processed;
+      let unchanged = batch.unchanged;
+      let failed = batch.failed;
+      while (!batch.complete) {
+        batch = await continueImport.mutateAsync({ batchId: batch.batchId });
+        processed += batch.processed;
+        unchanged += batch.unchanged;
+        failed += batch.failed;
+      }
       await utils.collections.list.invalidate();
       await utils.collections.get.invalidate({ collectionId: created.collectionId });
-      setPreview(null);
-      setSelectedUrls([]);
-      toast.success("Collection created and first import batch completed.");
+      append({ id: id(), kind: "note", text: `${proposal.name} is ready. Codex imported ${processed} page${processed === 1 ? "" : "s"}${unchanged ? ` and kept ${unchanged} unchanged page${unchanged === 1 ? "" : "s"}` : ""}${failed ? `; ${failed} page${failed === 1 ? " needs" : "s need"} attention` : ""}. It saved source snapshots and will now keep answers inside this collection.` });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "The collection could not be created.");
+      append({ id: id(), kind: "note", text: error instanceof Error ? error.message : "Codex could not import that collection." });
     }
   }
 
-  async function askCollection(event: FormEvent) {
+  async function refreshActiveSource() {
+    if (!activeCollectionId || !detail.data?.collection) return;
+    const collectionName = detail.data.collection.name;
+    setSourcesOpen(false);
+    append({ id: id(), kind: "note", text: `Codex is checking ${collectionName} for changes.` });
+    try {
+      let batch = await refresh.mutateAsync({ collectionId: activeCollectionId });
+      let processed = batch.processed;
+      let unchanged = batch.unchanged;
+      let failed = batch.failed;
+      while (!batch.complete) {
+        batch = await continueImport.mutateAsync({ batchId: batch.batchId });
+        processed += batch.processed;
+        unchanged += batch.unchanged;
+        failed += batch.failed;
+      }
+      await utils.collections.get.invalidate(activeInput);
+      await utils.collections.list.invalidate();
+      append({ id: id(), kind: "note", text: `${collectionName} is current. ${processed ? `${processed} page${processed === 1 ? " was" : "s were"} updated` : "No pages changed"}${unchanged ? `; ${unchanged} unchanged` : ""}${failed ? `; ${failed} needs attention` : ""}.` });
+    } catch (error) {
+      append({ id: id(), kind: "note", text: error instanceof Error ? error.message : `Codex could not refresh ${collectionName}.` });
+    }
+  }
+
+  async function saveProfile(event: FormEvent) {
     event.preventDefault();
-    if (!activeId) return;
+    if (!activeCollectionId) return;
     try {
-      const result = await answerMutation.mutateAsync({ collectionId: activeId, question, useOptionalSynthesis: activeCollection?.aiSynthesisEnabled ?? false });
-      setAnswer(result);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "The collection could not answer that question.");
-    }
-  }
-
-  async function saveProfile() {
-    if (!activeId) return;
-    try {
-      const { rootUrl: _rootUrl, ...profile } = form;
-      await profileMutation.mutateAsync({ collectionId: activeId, profile: { ...profile, aiSynthesisEnabled: activeCollection?.aiSynthesisEnabled ?? false } });
-      await utils.collections.get.invalidate({ collectionId: activeId });
+      await updateProfile.mutateAsync({ collectionId: activeCollectionId, profile: profileDraft });
+      await utils.collections.get.invalidate(activeInput);
       await utils.collections.list.invalidate();
       setProfileOpen(false);
-      toast.success("Expert profile updated. Evidence rules remain unchanged.");
+      append({ id: id(), kind: "note", text: `${profileDraft.name} now uses its updated expert framing. Source evidence remains the boundary for every answer.` });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "The expert profile could not be updated.");
+      append({ id: id(), kind: "note", text: error instanceof Error ? error.message : "Codex could not update that expert profile." });
     }
   }
 
-  const activeCollection = detailQuery.data?.collection;
-  const pages = detailQuery.data?.pages ?? [];
-  const latestBatch = detailQuery.data?.batch;
-  const busy = previewMutation.isPending || createMutation.isPending || importMutation.isPending;
-
-  return <div className="min-h-screen bg-background text-foreground">
-    <header className="border-b editorial-rule bg-background">
-      <div className="mx-auto grid max-w-[1520px] grid-cols-12 px-4 sm:px-6">
-        <div className="col-span-12 flex h-16 items-center justify-between border-x editorial-rule px-4 sm:px-5">
-          <button className="text-[22px] font-medium tracking-[-0.07em]" onClick={() => { setActiveId(null); setAnswer(null); }}>Codex</button>
-          <div className="hidden items-center gap-7 text-xs sm:flex">
-            <span className="text-muted-foreground">Private source intelligence</span>
-            <span className="font-medium">{collectionsQuery.data?.length ?? 0} collection{collectionsQuery.data?.length === 1 ? "" : "s"}</span>
-          </div>
-          <div className="flex items-center gap-3 text-xs">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : isAuthenticated ? <>
-              <span className="hidden text-muted-foreground sm:inline">{user?.name || "Private workspace"}</span>
-              <button className="quiet-link border-l editorial-rule pl-3" onClick={logout}>Sign out</button>
-            </> : <button className="quiet-link border-l editorial-rule pl-3" onClick={() => startLogin()}>Sign in</button>}
-          </div>
-        </div>
+  return <div className="min-h-dvh bg-background text-foreground">
+    {awake && <header className="flex h-14 items-center justify-between border-b border-border px-5 sm:px-7">
+      <button className="font-serif text-xl tracking-tight" onClick={() => { setTurns([]); setCommand(""); inputRef.current?.focus(); }}>Codex</button>
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        {isAuthenticated && <button onClick={() => setSourcesOpen(true)} className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 transition-colors hover:bg-muted hover:text-foreground"><Globe2 className="h-3.5 w-3.5" /> Sources{collections.data?.length ? ` · ${collections.data.length}` : ""}</button>}
+        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isAuthenticated ? <button className="hover:text-foreground" onClick={logout}>Sign out</button> : <button className="hover:text-foreground" onClick={() => startLogin()}>Sign in</button>}
       </div>
-    </header>
+    </header>}
 
-    <main className="grid grid-cols-12 grid-surface mx-auto min-h-[calc(100vh-65px)] max-w-[1520px] px-4 sm:px-6">
-      <aside className="col-span-12 border-x editorial-rule bg-background/92 p-5 lg:col-span-3 lg:min-h-[calc(100vh-65px)]">
-        <div className="flex items-center justify-between border-b editorial-rule pb-3">
-          <span className="caps-label">Collections</span>
-          <button className="quiet-link text-xs" onClick={() => { setActiveId(null); setPreview(null); setAnswer(null); setForm(initialForm); }}>New site</button>
-        </div>
-        <div className="mt-3 space-y-1">
-          {!isAuthenticated && <p className="py-5 text-sm leading-6 text-muted-foreground">Sign in to keep private collections and source snapshots separate from the public web.</p>}
-          {isAuthenticated && collectionsQuery.isLoading && <p className="py-5 text-sm text-muted-foreground">Loading your library.</p>}
-          {isAuthenticated && !collectionsQuery.isLoading && !collectionsQuery.data?.length && <p className="py-5 text-sm leading-6 text-muted-foreground">Your first collection begins with one public website and a clear evidence boundary.</p>}
-          {collectionsQuery.data?.map((collection) => <button key={collection.id} onClick={() => { setActiveId(collection.id); setAnswer(null); setPreview(null); }} className={`group w-full border-b border-border py-3 text-left transition-colors ${activeId === collection.id ? "bg-foreground px-3 text-background" : "hover:bg-muted"}`}>
-            <div className="flex items-center justify-between gap-3">
-              <span className="truncate text-sm font-medium">{collection.name}</span>
-              <StatusDot status={collection.importStatus === "ready" ? "ready" : collection.importStatus} />
-            </div>
-            <div className={`mt-1 flex items-center justify-between text-[11px] ${activeId === collection.id ? "text-background/60" : "text-muted-foreground"}`}>
-              <span className="truncate">{new URL(collection.rootUrl).hostname}</span><span>{collection.pageCount} pages</span>
-            </div>
-          </button>)}
-        </div>
-        <div className="mt-12 border-t editorial-rule pt-3 text-xs leading-5 text-muted-foreground">
-          <ShieldCheck className="mb-2 h-4 w-4 text-foreground" />
-          Each query is bounded to its selected collection. When source evidence is absent, Codex says so.
-        </div>
-      </aside>
+    {!awake ? <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col items-center justify-center px-6 pb-28 text-center">
+      <div className="mb-8 enter-up"><h1 className="font-serif text-5xl tracking-tight sm:text-6xl">Codex</h1><p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">A personal encyclopedia that works from the sources you choose.</p></div>
+      <div className="w-full enter-up"><CommandBar inputRef={inputRef} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} /></div>
+      <p className="mt-4 text-xs text-muted-foreground">Press Enter to ask a question or add a public website.</p>
+    </main> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
+      <Conversation className="min-h-0 flex-1">
+        <ConversationContent className="mx-auto w-full max-w-2xl space-y-7 py-8 sm:py-12">
+          {turns.map((turn) => <div key={turn.id} className="animate-in fade-in slide-in-from-bottom-1 duration-200">
+            {turn.kind === "user" && <div className="ml-auto max-w-[86%] rounded-2xl rounded-br-sm bg-foreground px-4 py-3 text-sm leading-6 text-background">{turn.text}</div>}
+            {turn.kind === "note" && <div className="max-w-[88%] rounded-xl border border-border bg-muted/35 px-4 py-3 text-sm leading-6">{turn.text}</div>}
+            {turn.kind === "proposal" && <div className="max-w-[92%] border border-border bg-card p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-medium">Codex prepared a source proposal</p><p className="mt-1 text-sm text-muted-foreground">{turn.proposal.name} · {turn.proposal.host}</p></div><Sparkles className="h-4 w-4 text-muted-foreground" /></div><p className="mt-5 text-sm leading-6">It found {turn.proposal.estimatedPageCount} pages and selected {Math.min(12, turn.proposal.urls.length)} useful starting pages. The import stays within this site and skips account, legal, and privacy paths.</p><div className="mt-5 flex flex-wrap gap-2"><button disabled={busy} onClick={() => approveProposal(turn.proposal)} className="inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm text-background disabled:opacity-40"><Check className="h-3.5 w-3.5" /> Approve and import</button><button onClick={() => setReviewOpen(true)} className="rounded-full border border-border px-4 py-2 text-sm hover:bg-muted">Review source</button></div></div>}
+            {turn.kind === "answer" && <article className="max-w-2xl"><p className="text-xs text-muted-foreground">{turn.answer.status === "evidence" ? `From ${turn.answer.collection}` : "Evidence boundary"}</p><h2 className="mt-2 font-serif text-3xl leading-tight tracking-tight sm:text-4xl">{turn.question}</h2>{turn.answer.synthesized ? <p className="mt-5 text-[17px] leading-8">{turn.answer.answer}</p> : <div className="mt-5 space-y-4 text-[17px] leading-8">{turn.answer.status === "evidence" ? turn.answer.citations.map((citation, index) => <p key={citation.id}>{citation.excerpt} <a href={citation.url} target="_blank" rel="noreferrer" className="font-mono text-xs underline underline-offset-4">[{index + 1}]</a></p>) : <p>{turn.answer.answer}</p>}</div>}{turn.answer.citations.length > 0 && <CitationList citations={turn.answer.citations} />}{turn.answer.relatedEntries.length > 0 && <div className="mt-6 flex flex-wrap gap-2">{turn.answer.relatedEntries.map((entry) => <button key={`${entry.title}-${entry.headingPath}`} onClick={() => setCommand(entry.title)} className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground">{entry.title}</button>)}</div>}</article>}
+          </div>)}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+      <div className="border-t border-border py-4"><CommandBar compact value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} /></div>
+    </main>}
 
-      <section className="col-span-12 border-r editorial-rule bg-background/80 lg:col-span-9">
-        {!isAuthenticated ? <div className="grid min-h-[calc(100vh-65px)] grid-cols-1 lg:grid-cols-9">
-          <div className="flex flex-col justify-between border-b editorial-rule p-6 sm:p-10 lg:col-span-6 lg:border-b-0 lg:border-r">
-            <div className="enter-up">
-              <p className="caps-label">A private reference system</p>
-              <h1 className="mt-8 max-w-3xl text-[clamp(3.1rem,7vw,7.5rem)] font-medium leading-[.83] tracking-[-.08em]">Your sources. <br />No substitution.</h1>
-              <p className="mt-9 max-w-xl text-base leading-7 text-muted-foreground">Codex turns an approved public website into a bounded expert collection. It preserves page provenance, retrieves exact passages, and gives you a direct answer only when the collection supports it.</p>
-            </div>
-            <button onClick={() => startLogin()} className="mt-12 flex w-fit items-center gap-3 bg-foreground px-5 py-4 text-sm font-medium text-background transition-transform active:scale-[.97]">Enter private workspace <ChevronRight className="h-4 w-4" /></button>
-          </div>
-          <div className="flex flex-col justify-between p-6 sm:p-10 lg:col-span-3">
-            <div><p className="caps-label">Protocol</p><p className="mt-5 text-sm leading-6 text-muted-foreground">Preview the scope. Approve pages. Import clean snapshots. Read every answer against its passages.</p></div>
-            <p className="font-serif text-2xl leading-8">“The source is the boundary.”</p>
-          </div>
-        </div> : activeCollection ? <div className="min-h-[calc(100vh-65px)]">
-          <div className="grid grid-cols-1 border-b editorial-rule lg:grid-cols-9">
-            <div className="p-6 sm:p-8 lg:col-span-6 lg:border-r editorial-rule">
-              <p className="caps-label">{activeCollection.audience}</p>
-              <div className="mt-5 flex items-start justify-between gap-5"><div><h1 className="text-4xl font-medium tracking-[-.06em] sm:text-6xl">{activeCollection.name}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{activeCollection.scope}</p></div><button onClick={() => setProfileOpen(!profileOpen)} className="shrink-0 border editorial-rule px-3 py-2 text-xs quiet-link">Profile</button></div>
-            </div>
-            <div className="grid grid-cols-2 p-6 text-xs sm:p-8 lg:col-span-3">
-              <div><p className="caps-label">Evidence mode</p><p className="mt-3 leading-5">{activeCollection.answerMode.replace(/-/g, " ")}</p></div>
-              <div><p className="caps-label">Current source set</p><p className="mt-3 leading-5">{pages.filter((page) => page.sourceStatus === "ready" || page.sourceStatus === "unchanged").length} of {pages.length} pages ready</p></div>
-            </div>
-          </div>
+    <Dialog open={sourcesOpen} onOpenChange={setSourcesOpen}><DialogContent className="max-h-[82vh] max-w-2xl overflow-y-auto rounded-none p-0"><DialogHeader className="border-b border-border p-5 text-left"><DialogTitle className="font-serif text-2xl font-normal">Sources</DialogTitle><DialogDescription>Collections stay out of the way until you need to inspect or maintain them.</DialogDescription></DialogHeader><div className="grid gap-0 sm:grid-cols-[185px_1fr]"><aside className="border-b border-border p-3 sm:border-r sm:border-b-0">{collections.data?.map((collection) => <button key={collection.id} onClick={() => { setActiveCollectionId(collection.id); setProfileOpen(false); }} className={`w-full rounded-lg px-3 py-2 text-left text-sm ${activeCollectionId === collection.id ? "bg-muted font-medium" : "hover:bg-muted/60"}`}>{collection.name}<span className="mt-0.5 block text-xs font-normal text-muted-foreground">{collection.pageCount} pages</span></button>)}<button onClick={() => { setSourcesOpen(false); setTurns([]); setCommand(""); setTimeout(() => inputRef.current?.focus(), 100); }} className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted"><Plus className="h-4 w-4" /> Add a website</button></aside><section className="p-5">{detail.data?.collection ? <><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-medium">{detail.data.collection.name}</p><a className="mt-1 block truncate text-xs text-muted-foreground underline underline-offset-4" href={detail.data.collection.rootUrl} target="_blank" rel="noreferrer">{detail.data.collection.rootUrl}</a></div><div className="flex gap-2"><button onClick={() => setProfileOpen((open) => !open)} className="rounded-full border border-border px-3 py-1.5 text-xs hover:bg-muted">{profileOpen ? "Close profile" : "Profile"}</button><button onClick={refreshActiveSource} disabled={refresh.isPending || continueImport.isPending} className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs hover:bg-muted"><RefreshCw className={`h-3 w-3 ${refresh.isPending || continueImport.isPending ? "animate-spin" : ""}`} /> Refresh</button></div></div>{profileOpen && <form onSubmit={saveProfile} className="mt-5 space-y-4 border-t border-border pt-4"><p className="text-xs text-muted-foreground">Expert framing changes how Codex presents material, never what its sources establish.</p><label className="block text-xs">Name<input required value={profileDraft.name} onChange={(event) => setProfileDraft((draft) => ({ ...draft, name: event.target.value }))} className="mt-1 w-full border border-border bg-background px-3 py-2 text-sm" /></label><label className="block text-xs">Scope<textarea required value={profileDraft.scope} onChange={(event) => setProfileDraft((draft) => ({ ...draft, scope: event.target.value }))} className="mt-1 min-h-18 w-full border border-border bg-background px-3 py-2 text-sm" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs">Audience<input required value={profileDraft.audience} onChange={(event) => setProfileDraft((draft) => ({ ...draft, audience: event.target.value }))} className="mt-1 w-full border border-border bg-background px-3 py-2 text-sm" /></label><label className="block text-xs">Tone<input required value={profileDraft.tone} onChange={(event) => setProfileDraft((draft) => ({ ...draft, tone: event.target.value }))} className="mt-1 w-full border border-border bg-background px-3 py-2 text-sm" /></label></div><label className="block text-xs">Answer mode<select value={profileDraft.answerMode} onChange={(event) => setProfileDraft((draft) => ({ ...draft, answerMode: event.target.value as ProfileDraft["answerMode"] }))} className="mt-1 w-full border border-border bg-background px-3 py-2 text-sm"><option value="extractive">Extractive</option><option value="source-backed">Source-backed</option><option value="labeled-synthesis">Labeled synthesis</option></select></label><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={profileDraft.aiSynthesisEnabled} onChange={(event) => setProfileDraft((draft) => ({ ...draft, aiSynthesisEnabled: event.target.checked }))} /> Optional synthesis may use credits</label><button disabled={updateProfile.isPending} className="rounded-full bg-foreground px-4 py-2 text-sm text-background disabled:opacity-40">Save framing</button></form>}<p className="mt-5 text-xs leading-5 text-muted-foreground">{detail.data.collection.scope}</p><div className="mt-6 border-t border-border pt-4"><p className="text-xs text-muted-foreground">Saved pages</p><div className="mt-3 space-y-3">{detail.data.pages.map((page) => <div key={page.id} className="flex items-start gap-2 text-sm"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground" /><div className="min-w-0"><p className="truncate">{page.pageTitle}</p><a className="block truncate text-xs text-muted-foreground" href={page.canonicalUrl} target="_blank" rel="noreferrer">{new URL(page.canonicalUrl).pathname || "/"}</a></div></div>)}</div></div></> : <p className="text-sm text-muted-foreground">Paste a public website into Codex to create your first source collection.</p>}</section></div></DialogContent></Dialog>
 
-          {profileOpen && <div className="grid grid-cols-1 border-b editorial-rule bg-muted/55 lg:grid-cols-9">
-            <div className="p-6 lg:col-span-6 lg:border-r editorial-rule"><p className="caps-label">Expert profile</p><div className="mt-5 grid gap-5 sm:grid-cols-2"><Field label="Collection name"><input value={form.name} onChange={(event) => updateForm("name", event.target.value)} className="focus-field w-full border editorial-rule bg-background px-3 py-2 text-sm" /></Field><Field label="Audience"><input value={form.audience} onChange={(event) => updateForm("audience", event.target.value)} className="focus-field w-full border editorial-rule bg-background px-3 py-2 text-sm" /></Field><Field label="Scope"><textarea value={form.scope} onChange={(event) => updateForm("scope", event.target.value)} className="focus-field min-h-24 w-full border editorial-rule bg-background px-3 py-2 text-sm" /></Field><Field label="Tone"><textarea value={form.tone} onChange={(event) => updateForm("tone", event.target.value)} className="focus-field min-h-24 w-full border editorial-rule bg-background px-3 py-2 text-sm" /></Field><Field label="Answer mode" hint="Controls expression, never source scope."><select value={form.answerMode} onChange={(event) => updateForm("answerMode", event.target.value as CollectionForm["answerMode"])} className="focus-field w-full border editorial-rule bg-background px-3 py-2 text-sm"><option value="extractive">Extractive</option><option value="source-backed">Source-backed</option><option value="labeled-synthesis">Labeled synthesis</option></select></Field><Field label="Optional synthesis" hint="Off by default. When enabled, only retrieved public excerpts are sent to a low-cost model."><button type="button" onClick={() => { if (!activeId || !activeCollection) return; profileMutation.mutate({ collectionId: activeId, profile: { aiSynthesisEnabled: !activeCollection.aiSynthesisEnabled } }, { onSuccess: () => { utils.collections.get.invalidate(activeCollectionInput); toast.success(activeCollection.aiSynthesisEnabled ? "Optional synthesis disabled." : "Optional synthesis enabled for this collection."); } }); }} className={`w-full border editorial-rule px-3 py-2 text-left text-sm ${activeCollection?.aiSynthesisEnabled ? "bg-foreground text-background" : "bg-background"}`}>{activeCollection?.aiSynthesisEnabled ? "Enabled — may use credits" : "Disabled — no model calls"}</button></Field></div></div>
-            <div className="flex flex-col justify-between p-6 lg:col-span-3"><p className="text-xs leading-5 text-muted-foreground">This profile guides framing and reader fit. It never creates facts, changes passages, or widens the collection boundary.</p><button onClick={saveProfile} disabled={profileMutation.isPending} className="mt-8 bg-foreground px-4 py-3 text-xs font-medium text-background disabled:opacity-50">Save profile</button></div>
-          </div>}
-
-          <div className="grid grid-cols-1 lg:grid-cols-9">
-            <div className="p-6 sm:p-8 lg:col-span-6 lg:border-r editorial-rule">
-              <p className="caps-label">Ask this collection</p>
-              <form onSubmit={askCollection} className="mt-5 flex border editorial-rule bg-background">
-                <input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder={`Ask ${activeCollection.name} a question`} className="focus-field min-w-0 flex-1 bg-transparent px-4 py-4 text-base outline-none" />
-                <button disabled={answerMutation.isPending || !question.trim()} className="flex w-14 items-center justify-center border-l editorial-rule bg-foreground text-background disabled:opacity-30" aria-label="Search collection">{answerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}</button>
-              </form>
-              <p className="mt-3 text-xs leading-5 text-muted-foreground">Searches only page passages imported into this collection. {answerModeDisclosure(activeCollection.aiSynthesisEnabled)}</p>
-
-              {answer && <article className="enter-up mt-12 border-t editorial-rule pt-5">
-                <div className="flex items-center justify-between gap-4"><p className="caps-label">{answer.status === "evidence" ? "Source-backed entry" : "Evidence boundary"}</p><span className="text-xs text-muted-foreground">{answer.collection}</span></div>
-                <h2 className="mt-5 max-w-3xl font-serif text-3xl leading-[1.12] tracking-[-.03em] sm:text-4xl">{question}</h2>
-                {answer.synthesized ? <p className="mt-6 max-w-3xl text-[17px] leading-8">{answer.answer}</p> : <div className="mt-6 max-w-3xl space-y-4 text-[17px] leading-8">{answer.status === "evidence" ? answer.citations.map((citation, index) => <p key={citation.id}>{citation.excerpt} <a href={citation.url} target="_blank" rel="noreferrer" className="font-mono text-xs underline underline-offset-4">[{index + 1}]</a></p>) : <p>{answer.answer}</p>}</div>}
-                {answer.citations.length > 0 && <section className="mt-10 border-t editorial-rule pt-4"><p className="caps-label">Source passages</p><div className="mt-4 divide-y editorial-rule">{answer.citations.map((citation, index) => <div key={citation.id} className="grid grid-cols-[28px_1fr] gap-3 py-5"><span className="font-mono text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")}</span><div><div className="flex flex-wrap items-baseline justify-between gap-3"><p className="text-sm font-medium">{citation.title}</p><a href={citation.url} target="_blank" rel="noreferrer" className="quiet-link flex items-center gap-1 text-xs underline underline-offset-4">Open source <ExternalLink className="h-3 w-3" /></a></div><p className="mt-1 text-xs text-muted-foreground">{citation.headingPath}</p><blockquote className="mt-3 border-l-2 editorial-rule pl-3 text-sm leading-6 text-muted-foreground">{citation.excerpt}</blockquote></div></div>)}</div></section>}
-                {answer.relatedEntries.length > 0 && <section className="mt-8 border-t editorial-rule pt-4"><p className="caps-label">Related entries</p><div className="mt-4 flex flex-wrap gap-2">{answer.relatedEntries.map((entry) => <button key={`${entry.title}-${entry.headingPath}`} onClick={() => setQuestion(entry.title)} className="border editorial-rule px-3 py-2 text-left text-xs quiet-link"><span className="block font-medium">{entry.title}</span><span className="mt-1 block text-muted-foreground">{entry.headingPath}</span></button>)}</div></section>}
-              </article>}
-
-              {!answer && <div className="mt-14 border-t editorial-rule pt-5"><p className="caps-label">Working principle</p><p className="mt-4 max-w-2xl font-serif text-2xl leading-8">Each answer is bounded by the saved source passages. When the collection is silent, Codex remains silent too.</p></div>}
-            </div>
-            <aside className="p-6 sm:p-8 lg:col-span-3">
-              <div className="flex items-center justify-between border-b editorial-rule pb-3"><span className="caps-label">Sources</span><button onClick={async () => { if (!activeId) return; try { await refreshMutation.mutateAsync({ collectionId: activeId }); await utils.collections.get.invalidate(activeCollectionInput); await utils.collections.list.invalidate(); toast.success("Refresh batch completed."); } catch (error) { toast.error(error instanceof Error ? error.message : "Unable to refresh this collection."); } }} disabled={refreshMutation.isPending || !pages.length} className="quiet-link flex items-center gap-1 text-xs disabled:opacity-35"><RefreshCw className={`h-3.5 w-3.5 ${refreshMutation.isPending ? "animate-spin" : ""}`} /> Refresh</button></div>
-              <div className="divide-y editorial-rule">{detailQuery.isLoading && <p className="py-5 text-sm text-muted-foreground">Reading source library.</p>}{pages.map((page) => <div className="py-4" key={page.id}><div className="flex items-start gap-2"><StatusDot status={page.sourceStatus} /><p className="min-w-0 flex-1 truncate text-xs font-medium">{page.pageTitle}</p></div><a href={page.canonicalUrl} target="_blank" rel="noreferrer" className="quiet-link mt-1 block truncate text-[11px] text-muted-foreground">{new URL(page.canonicalUrl).pathname || "/"}</a><p className="mt-2 text-[11px] text-muted-foreground">{sourceStatusLabel(page.sourceStatus, page.snapshotCount)}</p>{page.importError && <p className="mt-2 text-[11px] leading-4 text-red-700">{page.importError}</p>}</div>)}</div>
-              {latestBatch && <div className="mt-6 border-t editorial-rule pt-4"><div className="flex items-center justify-between"><span className="caps-label">Latest import</span><span className="text-xs">{latestBatch.status}</span></div><p className="mt-3 text-xs leading-5 text-muted-foreground">{latestBatch.processedCount} imported · {latestBatch.unchangedCount} unchanged · {latestBatch.failedCount} needs attention</p>{latestBatch.status === "paused" && <button onClick={async () => { try { await continueMutation.mutateAsync({ batchId: latestBatch.id }); await utils.collections.get.invalidate(activeCollectionInput); await utils.collections.list.invalidate(); toast.success("The next import batch has completed."); } catch (error) { toast.error(error instanceof Error ? error.message : "The import could not continue."); } }} disabled={continueMutation.isPending} className="mt-4 w-full border editorial-rule px-3 py-2 text-xs font-medium quiet-link disabled:opacity-45">{continueMutation.isPending ? "Continuing batch" : "Continue import"}</button>}</div>}
-              {!pages.length && <p className="py-6 text-sm leading-6 text-muted-foreground">This collection has no imported pages yet. Preview the site again to select and import sources.</p>}
-            </aside>
-          </div>
-        </div> : <div className="grid min-h-[calc(100vh-65px)] grid-cols-1 lg:grid-cols-9">
-          <div className="p-6 sm:p-8 lg:col-span-6 lg:border-r editorial-rule">
-            <div className="max-w-2xl"><p className="caps-label">New expert collection</p><h1 className="mt-7 text-5xl font-medium leading-[.88] tracking-[-.075em] sm:text-7xl">Build from a public source, not a model’s memory.</h1><p className="mt-7 text-sm leading-6 text-muted-foreground">Define a website’s bounds before importing it. Codex preserves the page, heading, passage, and time of every source it later cites.</p></div>
-            <form onSubmit={previewScope} className="mt-10 grid gap-5 sm:grid-cols-2">
-              <Field label="Expert collection name"><input required value={form.name} onChange={(event) => updateForm("name", event.target.value)} placeholder="e.g. City planning reference" className="focus-field w-full border editorial-rule bg-background px-3 py-3 text-sm" /></Field>
-              <Field label="Public website URL"><input required type="url" value={form.rootUrl} onChange={(event) => updateForm("rootUrl", event.target.value)} placeholder="https://example.org" className="focus-field w-full border editorial-rule bg-background px-3 py-3 text-sm" /></Field>
-              <Field label="Include paths" hint="One prefix per line or comma. Use / for the full site."><input value={form.includePaths} onChange={(event) => updateForm("includePaths", event.target.value)} className="focus-field w-full border editorial-rule bg-background px-3 py-3 text-sm" /></Field>
-              <Field label="Exclude paths" hint="Keep sections such as /login or /archive outside the collection."><input value={form.excludePaths} onChange={(event) => updateForm("excludePaths", event.target.value)} placeholder="/login, /archive" className="focus-field w-full border editorial-rule bg-background px-3 py-3 text-sm" /></Field>
-              <Field label="Initial page limit" hint="A small first import keeps the collection inspectable."><select value={form.pageLimit} onChange={(event) => updateForm("pageLimit", Number(event.target.value))} className="focus-field w-full border editorial-rule bg-background px-3 py-3 text-sm">{[5, 12, 20, 35, 50].map((count) => <option key={count} value={count}>{count} pages</option>)}</select></Field>
-              <Field label="Answer mode" hint="This controls expression, never the evidence boundary."><select value={form.answerMode} onChange={(event) => updateForm("answerMode", event.target.value as CollectionForm["answerMode"])} className="focus-field w-full border editorial-rule bg-background px-3 py-3 text-sm"><option value="extractive">Extractive: exact source passages</option><option value="source-backed">Source-backed: concise synthesis</option><option value="labeled-synthesis">Labeled synthesis: interpretation marked</option></select></Field>
-              <Field label="Scope"><textarea required value={form.scope} onChange={(event) => updateForm("scope", event.target.value)} className="focus-field min-h-24 w-full border editorial-rule bg-background px-3 py-3 text-sm" /></Field>
-              <Field label="Audience and tone"><textarea required value={`${form.audience}\n${form.tone}`} onChange={(event) => { const [audience = "", ...tone] = event.target.value.split("\n"); updateForm("audience", audience); updateForm("tone", tone.join(" ")); }} className="focus-field min-h-24 w-full border editorial-rule bg-background px-3 py-3 text-sm" /></Field>
-              <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-4 border-t editorial-rule pt-5"><p className="max-w-sm text-xs leading-5 text-muted-foreground">Codex checks that the URL is public, stays on the same host, limits redirects and page size, and respects robots directives before it previews anything.</p><button disabled={busy} className="flex items-center gap-2 bg-foreground px-5 py-3 text-sm font-medium text-background disabled:opacity-50">{previewMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Preview scope</button></div>
-            </form>
-          </div>
-          <aside className="p-6 sm:p-8 lg:col-span-3">
-            <p className="caps-label">Import protocol</p><ol className="mt-5 space-y-5 border-l editorial-rule pl-4 text-sm leading-6"><li><span className="font-medium">01 / Preview</span><br /><span className="text-muted-foreground">Inspect discovered same-host URLs and apply path rules.</span></li><li><span className="font-medium">02 / Approve</span><br /><span className="text-muted-foreground">Select the pages that make up this specific expert collection.</span></li><li><span className="font-medium">03 / Ground</span><br /><span className="text-muted-foreground">Read every answer against saved passages and opening source links.</span></li></ol>
-          </aside>
-        </div>}
-      </section>
-    </main>
-
-    {preview && <div className="fixed inset-0 z-50 overflow-y-auto bg-foreground/25 p-4 sm:p-8"><div className="mx-auto max-w-5xl border editorial-rule bg-background shadow-2xl"><div className="flex items-start justify-between border-b editorial-rule p-5 sm:p-7"><div><p className="caps-label">Scope preview</p><h2 className="mt-3 text-3xl font-medium tracking-[-.055em]">{preview.host}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{preview.estimatedPageCount} same-host URLs detected. You are selecting the first {Math.min(selectedUrls.length, form.pageLimit)} pages for this controlled first import.</p></div><button onClick={() => setPreview(null)} className="quiet-link p-1" aria-label="Close preview"><X className="h-5 w-5" /></button></div><div className="grid grid-cols-1 lg:grid-cols-3"><div className="p-5 lg:col-span-2 lg:border-r editorial-rule"><div className="max-h-[52vh] divide-y editorial-rule overflow-y-auto border-y editorial-rule">{preview.discoveredUrls.map((item) => { const checked = selectedUrls.includes(item.url); return <label key={item.url} className="flex cursor-pointer items-start gap-3 px-2 py-3 hover:bg-muted"><input type="checkbox" checked={checked} onChange={() => setSelectedUrls((current) => checked ? current.filter((url) => url !== item.url) : [...current, item.url].slice(0, form.pageLimit))} className="mt-1 h-4 w-4 accent-black" /><div className="min-w-0"><p className="text-sm">{item.path || "/"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.url}</p></div><span className="ml-auto text-xs text-muted-foreground">{checked && <Check className="h-4 w-4" />}</span></label>; })}</div></div><div className="flex flex-col justify-between p-5"><div><p className="caps-label">Import boundary</p><p className="mt-4 text-sm leading-6 text-muted-foreground">{preview.robotsNotice}</p><p className="mt-5 font-serif text-2xl">{selectedUrls.length} approved page{selectedUrls.length === 1 ? "" : "s"}</p></div><button onClick={createAndImport} disabled={busy || !selectedUrls.length} className="mt-8 flex items-center justify-center gap-2 bg-foreground px-4 py-4 text-sm font-medium text-background disabled:opacity-40">{createMutation.isPending || importMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderPlus className="h-4 w-4" />} Create and import</button></div></div></div></div>}
+    <Dialog open={reviewOpen} onOpenChange={setReviewOpen}><DialogContent className="max-h-[82vh] max-w-2xl overflow-y-auto rounded-none p-0"><DialogHeader className="border-b border-border p-5 text-left"><DialogTitle className="font-serif text-2xl font-normal">Source review</DialogTitle><DialogDescription>Codex does the selection; you retain the final approval.</DialogDescription></DialogHeader><div className="divide-y divide-border">{turns.filter((turn): turn is Extract<ChatTurn, { kind: "proposal" }> => turn.kind === "proposal").flatMap((turn) => turn.proposal.urls).map((source) => <div key={source.url} className="flex items-start gap-3 p-4"><Check className="mt-0.5 h-4 w-4 shrink-0" /><div className="min-w-0"><p className="text-sm">{source.path || "/"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{source.url}</p></div></div>)}</div></DialogContent></Dialog>
   </div>;
 }
