@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, index, int, json, longtext, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -25,4 +25,80 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+export const collections = mysqlTable("collections", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 80 }).notNull(),
+  rootUrl: varchar("rootUrl", { length: 1024 }).notNull(),
+  scope: text("scope").notNull(),
+  audience: varchar("audience", { length: 120 }).notNull(),
+  tone: varchar("tone", { length: 120 }).notNull(),
+  answerMode: mysqlEnum("answerMode", ["extractive", "source-backed", "labeled-synthesis"]).notNull().default("extractive"),
+  aiSynthesisEnabled: boolean("aiSynthesisEnabled").notNull().default(false),
+  includePaths: text("includePaths").notNull(),
+  excludePaths: text("excludePaths").notNull(),
+  pageLimit: int("pageLimit").notNull().default(20),
+  importStatus: mysqlEnum("importStatus", ["idle", "importing", "ready", "attention"]).notNull().default("idle"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [index("collections_user_idx").on(table.userId)]);
+
+export const importBatches = mysqlTable("import_batches", {
+  id: int("id").autoincrement().primaryKey(),
+  collectionId: int("collectionId").notNull(),
+  status: mysqlEnum("status", ["running", "paused", "complete", "failed"]).notNull().default("running"),
+  requestedCount: int("requestedCount").notNull(),
+  processedCount: int("processedCount").notNull().default(0),
+  unchangedCount: int("unchangedCount").notNull().default(0),
+  failedCount: int("failedCount").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+}, (table) => [index("import_batches_collection_idx").on(table.collectionId)]);
+
+export const collectionPages = mysqlTable("collection_pages", {
+  id: int("id").autoincrement().primaryKey(),
+  collectionId: int("collectionId").notNull(),
+  importBatchId: int("importBatchId"),
+  canonicalUrl: varchar("canonicalUrl", { length: 1024 }).notNull(),
+  pageTitle: text("pageTitle").notNull(),
+  headings: json("headings").notNull(),
+  cleanText: longtext("cleanText"),
+  contentHash: varchar("contentHash", { length: 64 }).notNull(),
+  sourceStatus: mysqlEnum("sourceStatus", ["queued", "ready", "unchanged", "failed", "skipped"]).notNull().default("queued"),
+  importError: text("importError"),
+  fetchedAt: timestamp("fetchedAt"),
+  importedAt: timestamp("importedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("collection_page_url_unique").on(table.collectionId, table.canonicalUrl),
+  index("collection_pages_batch_idx").on(table.importBatchId),
+]);
+
+export const passages = mysqlTable("passages", {
+  id: int("id").autoincrement().primaryKey(),
+  collectionId: int("collectionId").notNull(),
+  pageId: int("pageId").notNull(),
+  position: int("position").notNull(),
+  headingPath: text("headingPath").notNull(),
+  anchor: varchar("anchor", { length: 180 }).notNull(),
+  text: longtext("text").notNull(),
+  contentHash: varchar("contentHash", { length: 64 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [index("passages_collection_idx").on(table.collectionId), index("passages_page_idx").on(table.pageId)]);
+
+export const pageSnapshots = mysqlTable("page_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  pageId: int("pageId").notNull(),
+  importBatchId: int("importBatchId"),
+  version: int("version").notNull(),
+  pageTitle: text("pageTitle").notNull(),
+  headings: json("headings").notNull(),
+  cleanText: longtext("cleanText").notNull(),
+  contentHash: varchar("contentHash", { length: 64 }).notNull(),
+  fetchedAt: timestamp("fetchedAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("page_snapshot_version_unique").on(table.pageId, table.version),
+  index("page_snapshots_page_idx").on(table.pageId),
+  index("page_snapshots_batch_idx").on(table.importBatchId),
+]);

@@ -1,0 +1,1 @@
+ALTER TABLE `collections` ADD `aiSynthesisEnabled` boolean DEFAULT false NOT NULL;

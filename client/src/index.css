@@ -4,6 +4,86 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --background: #f7f7f4;
+  --foreground: #121212;
+  --muted: #ecece7;
+  --muted-foreground: #676763;
+  --border: #d6d6cf;
+  --primary: #111111;
+  --primary-foreground: #f7f7f4;
+  --card: #fbfbf9;
+  --card-foreground: #121212;
+  --accent: #e8e8e3;
+  --accent-foreground: #121212;
+  --ring: #121212;
+  --radius: 0px;
+}
+
+* { border-color: var(--border); }
+
+html { background: var(--background); }
+
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing: -0.012em;
+}
+
+button, input, textarea, select { font: inherit; }
+
+::selection { background: #111; color: #fff; }
+
+.grid-surface {
+  background-image: linear-gradient(to right, rgba(18,18,18,.075) 1px, transparent 1px), linear-gradient(to bottom, rgba(18,18,18,.055) 1px, transparent 1px);
+  background-size: calc(100% / 12) 100%, 100% 38px;
+}
+
+.editorial-rule { border-color: #141414; }
+
+.caps-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.focus-field:focus {
+  outline: 2px solid #111;
+  outline-offset: -2px;
+}
+
+.quiet-link { transition: opacity 160ms cubic-bezier(.23,1,.32,1); }
+.quiet-link:hover { opacity: .48; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .enter-up { animation: enter-up 260ms cubic-bezier(.23,1,.32,1) both; }
+  @keyframes enter-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+}
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
