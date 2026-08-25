@@ -31,3 +31,13 @@
 - [x] Use permitted official components or source modules where they reduce implementation risk and preserve the single-bar Codex interaction model.
 - [x] Remove all persistent pre-Enter header controls so the floating command bar is the only interactive element before Codex is invoked.
 - [x] Add contextual expert-profile editing behind the post-Enter Sources view, keeping name, scope, audience, tone, answer mode, and optional synthesis off the landing screen.
+- [x] Keep the active mobile command input visible above the virtual keyboard instead of allowing the centered landing layout to move out of view.
+- [x] Transition the command bar gracefully from the initial floating state into an expanding, grounded conversation composer during input and after submission.
+- [x] Verify the mobile focus, keyboard, and expanding-composer behavior without regressing the calm pre-Enter landing state.
+- [ ] Confirm the virtual-keyboard behavior on a physical mobile browser, where a real keyboard resize can be observed during focus, typing, and submission.
+- [x] Remove the failing visualViewport-height layout and keep the landing composer in stable normal document flow when the mobile keyboard opens.
+- [ ] Re-test the corrected mobile composer on a physical device and confirm the field stays on-screen while typing.
+- [x] Anchor the active mobile composer to a stable viewport edge so the virtual keyboard cannot push it out of view.
+- [x] Add compact as-you-type source and question suggestions immediately above the active composer.
+- [ ] Verify the edge-anchored composer and suggestion interaction on a physical mobile browser.
+- [x] Add deterministic unit coverage for the compact source-aware suggestion ranking.

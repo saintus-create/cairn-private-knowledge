@@ -3,6 +3,7 @@ import { startLogin } from "@/const";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/elevenlabs/conversation";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { collectionNameFromUrl, commandIntent, firstPublicUrl } from "@/lib/codexCommand";
+import { getComposerSuggestions } from "@/lib/composerSuggestions";
 import { trpc } from "@/lib/trpc";
 import { ArrowUp, BookOpen, Check, ChevronRight, ExternalLink, Globe2, Loader2, Plus, RefreshCw, Sparkles, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -44,10 +45,10 @@ type ChatTurn =
 
 const id = () => crypto.randomUUID();
 
-function CommandBar({ value, onChange, onSubmit, busy, compact = false, inputRef }: { value: string; onChange: (value: string) => void; onSubmit: () => void; busy: boolean; compact?: boolean; inputRef?: React.RefObject<HTMLInputElement | null> }) {
-  return <form onSubmit={(event) => { event.preventDefault(); onSubmit(); }} className={`flex w-full items-center gap-3 rounded-full bg-foreground text-background shadow-[0_18px_50px_rgba(0,0,0,.18)] transition-shadow focus-within:shadow-[0_20px_58px_rgba(0,0,0,.28)] ${compact ? "px-4 py-2" : "px-5 py-3"}`}>
+function CommandBar({ value, onChange, onSubmit, busy, compact = false, expanded = false, inputRef, onFocus, onBlur }: { value: string; onChange: (value: string) => void; onSubmit: () => void; busy: boolean; compact?: boolean; expanded?: boolean; inputRef?: React.RefObject<HTMLInputElement | null>; onFocus?: () => void; onBlur?: () => void }) {
+  return <form onSubmit={(event) => { event.preventDefault(); onSubmit(); }} className={`flex w-full items-center gap-3 bg-foreground text-background transition-[border-radius,padding,box-shadow] duration-200 ease-out focus-within:shadow-[0_20px_58px_rgba(0,0,0,.28)] ${compact ? "rounded-full px-4 py-2 shadow-[0_10px_30px_rgba(0,0,0,.12)]" : expanded ? "rounded-2xl px-5 py-4 shadow-[0_16px_42px_rgba(0,0,0,.18)]" : "rounded-full px-5 py-3 shadow-[0_18px_50px_rgba(0,0,0,.18)]"}`}>
     <BookOpen className={`shrink-0 opacity-65 ${compact ? "h-4 w-4" : "h-5 w-5"}`} aria-hidden />
-    <input ref={inputRef} autoFocus value={value} onChange={(event) => onChange(event.target.value)} placeholder="Ask Codex or add a website" className={`min-w-0 flex-1 bg-transparent text-background outline-none placeholder:text-background/45 ${compact ? "text-sm" : "text-base"}`} />
+    <input ref={inputRef} value={value} onFocus={onFocus} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} placeholder="Ask Codex or add a website" className={`min-w-0 flex-1 bg-transparent text-background outline-none placeholder:text-background/45 ${compact ? "text-sm" : "text-base"}`} />
     <button type="submit" disabled={!value.trim() || busy} className={`flex shrink-0 items-center justify-center rounded-full bg-background text-foreground transition-transform active:scale-95 disabled:opacity-35 ${compact ? "h-7 w-7" : "h-9 w-9"}`} aria-label="Send command">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}</button>
   </form>;
 }
@@ -65,6 +66,7 @@ export default function Home() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>({ name: "", scope: "", audience: "", tone: "", answerMode: "extractive", aiSynthesisEnabled: false });
+  const [composerFocused, setComposerFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const activeInput = useMemo(() => ({ collectionId: activeCollectionId ?? 0 }), [activeCollectionId]);
@@ -80,6 +82,8 @@ export default function Home() {
   const utils = trpc.useUtils();
   const busy = preview.isPending || create.isPending || startImport.isPending || continueImport.isPending || refresh.isPending || updateProfile.isPending || answer.isPending;
   const awake = turns.length > 0;
+  const composerExpanded = !awake && (composerFocused || command.length > 0);
+  const composerSuggestions = useMemo(() => getComposerSuggestions({ query: command, expanded: composerExpanded, collection: detail.data?.collection, pages: detail.data?.pages ?? [] }), [command, composerExpanded, detail.data?.collection, detail.data?.pages]);
 
   useEffect(() => {
     if (!activeCollectionId && collections.data?.[0]) setActiveCollectionId(collections.data[0].id);
@@ -92,6 +96,10 @@ export default function Home() {
   }, [detail.data?.collection]);
 
   function append(turn: ChatTurn) { setTurns((current) => [...current, turn]); }
+
+  function focusComposer() {
+    setComposerFocused(true);
+  }
 
   async function interpretCommand() {
     const text = command.trim();
@@ -197,11 +205,7 @@ export default function Home() {
       </div>
     </header>}
 
-    {!awake ? <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col items-center justify-center px-6 pb-28 text-center">
-      <div className="mb-8 enter-up"><h1 className="font-serif text-5xl tracking-tight sm:text-6xl">Codex</h1><p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">A personal encyclopedia that works from the sources you choose.</p></div>
-      <div className="w-full enter-up"><CommandBar inputRef={inputRef} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} /></div>
-      <p className="mt-4 text-xs text-muted-foreground">Press Enter to ask a question or add a public website.</p>
-    </main> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
+    {!awake ? <><main className="mx-auto flex min-h-[100svh] w-full max-w-2xl flex-col items-center justify-center px-6 pb-28 text-center"><div className="enter-up"><h1 className="font-serif text-5xl tracking-tight sm:text-6xl">Codex</h1><p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">A personal encyclopedia that works from the sources you choose.</p></div></main><div className={`fixed inset-x-0 z-20 px-4 transition-[top,bottom,transform] duration-200 ease-out sm:px-7 ${composerExpanded ? "bottom-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:top-6 sm:bottom-auto sm:pb-0" : "top-1/2 -translate-y-[10%]"}`}><div className="mx-auto w-full max-w-2xl"><div className={`mb-2 space-y-1.5 transition-[max-height,opacity,transform] duration-200 ease-out ${composerExpanded ? "max-h-56 translate-y-0 opacity-100" : "max-h-0 translate-y-2 overflow-hidden opacity-0"}`}>{composerSuggestions.map((suggestion) => <button key={`${suggestion.label}-${suggestion.detail}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCommand(suggestion.command); inputRef.current?.focus(); }} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-background/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{suggestion.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></button>)}</div><CommandBar inputRef={inputRef} expanded={composerExpanded} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} onFocus={focusComposer} onBlur={() => { if (!command.trim()) setComposerFocused(false); }} /><p className={`mt-3 text-center text-xs text-muted-foreground transition-opacity duration-150 ${composerExpanded ? "opacity-0" : "opacity-100"}`}>Press Enter to ask a question or add a public website.</p></div></div></> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="mx-auto w-full max-w-2xl space-y-7 py-8 sm:py-12">
           {turns.map((turn) => <div key={turn.id} className="animate-in fade-in slide-in-from-bottom-1 duration-200">
