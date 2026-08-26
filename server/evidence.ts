@@ -25,7 +25,9 @@ function excerptForQuestion(text: string, terms: string[]) {
 }
 
 export function citationUrl(url: string, anchor: string, passageText: string) {
+  if (/downloads\.leginfo\.legislature\.ca\.gov\/[^#]+\.zip#FAM/i.test(url)) return url;
   if (anchor.startsWith("id:")) return `${url}#${encodeURIComponent(anchor.slice(3))}`;
+  if (anchor.startsWith("official:")) return `${url.split("#")[0]}#${encodeURIComponent(anchor.slice(9))}`;
   const exactText = anchor.startsWith("text:") ? anchor.slice(5) : passageText.slice(0, 120);
   return `${url}#:~:text=${encodeURIComponent(exactText)}`;
 }
@@ -37,9 +39,21 @@ export function buildEvidenceResponse(input: {
   rows: EvidenceRow[];
 }) {
   const terms = queryTerms(input.question);
-  const ranked = input.rows
-    .map((row) => ({ ...row, score: terms.filter((term) => row.passageText.toLowerCase().includes(term)).length }))
-    .filter((row) => row.score > 0 && assessSourceQuality(row.passageText).usable)
+  const candidates = input.rows
+    .map((row) => ({
+      ...row,
+      score: terms.reduce((score, term) => {
+        const hits = Number(row.passageText.toLowerCase().includes(term)) + Number(row.pageTitle.toLowerCase().includes(term)) + Number(row.headingPath.toLowerCase().includes(term));
+        return score + hits * (/^\d+(?:\.\d+)?$/.test(term) ? 8 : 1);
+      }, 0),
+    }))
+    .filter((row) => row.score > 0 && assessSourceQuality(row.passageText).usable);
+  const bestBySource = new Map<string, (typeof candidates)[number]>();
+  for (const candidate of candidates) {
+    const previous = bestBySource.get(candidate.url);
+    if (!previous || candidate.score > previous.score) bestBySource.set(candidate.url, candidate);
+  }
+  const ranked = Array.from(bestBySource.values())
     .sort((a, b) => b.score - a.score)
     .slice(0, 4);
   if (!ranked.length) {

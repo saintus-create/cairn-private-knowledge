@@ -110,17 +110,23 @@
 - [ ] Make a website or document the natural first action for a new expert project, with an explicit evidence boundary before it answers questions.
 - [ ] Verify that California Legislative Information and later website experts remain isolated and only answer from their own saved sources.
 - [x] Define an official-primary-law policy that prioritizes statute text, bill text, and official legislative history over commentary or third-party summaries.
-- [ ] Add a California Legislative Information expert-project starter, then make official portals such as Congress.gov selectable as separate subsequent experts.
+- [x] Add a California Legislative Information expert-project starter.
+- [ ] Make official portals such as Congress.gov selectable as separate subsequent expert starters with their own provenance and evidence boundaries.
 - [ ] Preserve section, code, session/version, effective-date, and official-source URL provenance in legislative citations and evidence snapshots.
 - [x] Establish a safe staged ingestion design for full statutory corpora that remains resumable, inspectable, and honest about scope and currency.
 - [x] Locate the user’s Family Code repository and inventory its official source links, code text, Rules of Court, documentation, formats, and update metadata.
 - [x] Convert the verified Family Code repository source map into a separate Cairn expert-project manifest without treating repository copy as the authoritative legal source by default.
 - [ ] Add component-level coverage for empty Unfiled questions opening the project path and named empty projects opening the source-add path.
 - [ ] Validate the new first-use transition on desktop and a physical mobile browser.
-- [ ] Implement a bounded official-download preparation worker that extracts only approved Family Code records from the California Legislative Information Downloadable Database rather than crawling robots-disallowed public pages.
-- [ ] Parse the selected official archive into code-section records with archive identity, retrieval time, code/division/part/chapter/section metadata, and source hashes before storage.
+- [x] Implement a bounded official-download preparation worker that extracts only approved Family Code records from the California Legislative Information Downloadable Database rather than crawling robots-disallowed public pages.
+- [x] Parse the selected official archive into code-section records with archive identity, retrieval time, code/division/part/chapter/section metadata, and source hashes before storage.
 - [ ] Add section-level citation rendering and source-status disclosure for prepared and imported primary-law collections.
 - [ ] Add official Rules of Court Title Five as a separately labeled procedural source after its official PDF import path is verified.
+- [x] Do not use repository snapshots as answer evidence for the Family Code expert; retain them only as a source map and extraction-validation aid.
+- [x] Select an approved official Downloadable Database archive and record its file name, publication timestamp, checksum, and source URL before extraction.
+- [x] Extract only the California Family Code table and law-section records in a bounded environment before any statutory text is admitted to Cairn evidence.
+- [x] Build the initial Family Code corpus as one coherent official archive snapshot rather than piecemeal portal-page imports.
+- [ ] Compare each later official archive against section hashes and admit only changed or new statutory records while retaining prior snapshots.
 - [x] Define a private project model that separates unrelated research contexts while allowing multiple websites and documents inside each project.
 - [x] Make collections, source imports, retrieval, and citations project-scoped so one project cannot leak evidence into another.
 - [x] Add a calm project switcher and a “new project” path that fit Cairn’s single-composer interface without becoming a dashboard.

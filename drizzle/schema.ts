@@ -72,6 +72,25 @@ export const importBatches = mysqlTable("import_batches", {
   completedAt: timestamp("completedAt"),
 }, (table) => [index("import_batches_collection_idx").on(table.collectionId)]);
 
+export const sourceArchives = mysqlTable("source_archives", {
+  id: int("id").autoincrement().primaryKey(),
+  collectionId: int("collectionId").notNull(),
+  sourceUrl: varchar("sourceUrl", { length: 1024 }).notNull(),
+  fileName: varchar("fileName", { length: 255 }).notNull(),
+  archiveSha256: varchar("archiveSha256", { length: 64 }).notNull(),
+  observedEtag: varchar("observedEtag", { length: 128 }),
+  observedLastModified: timestamp("observedLastModified"),
+  acquiredAt: timestamp("acquiredAt").notNull(),
+  recordCount: int("recordCount").notNull(),
+  extractStorageKey: varchar("extractStorageKey", { length: 1024 }).notNull(),
+  extractStorageUrl: varchar("extractStorageUrl", { length: 1024 }).notNull(),
+  extractSha256: varchar("extractSha256", { length: 64 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("source_archives_collection_idx").on(table.collectionId),
+  uniqueIndex("source_archives_collection_hash_unique").on(table.collectionId, table.archiveSha256),
+]);
+
 export const collectionPages = mysqlTable("collection_pages", {
   id: int("id").autoincrement().primaryKey(),
   collectionId: int("collectionId").notNull(),

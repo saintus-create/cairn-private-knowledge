@@ -36,6 +36,8 @@ The Family Code corpus should not be treated as a one-click, unobservable scrape
 
 The official database inventory includes approximately gigabyte-scale biennial and daily archives. Those archives are not suitable for direct browser upload or autoscaled request handling. The production implementation therefore needs a bounded preparation worker that retrieves an approved archive, extracts only the Family Code subset, records the archive name and publication date, and hands Cairn a compact, inspectable source package.[3]
 
+The official README identifies code and law-section table files, including large-object files paired with law-section records. The worker must first validate the selected archive’s declared schema and use that relationship to select `FAM` records; it must not infer statutory structure from secondary material or a page scrape.[4]
+
 | Stage | Scope | Required result |
 |---|---|---|
 | 1. Source-map registration | Add the official Family Code root, Title Five rules, and the repository map as separate source records. | No answer may claim corpus coverage yet. |
@@ -55,3 +57,5 @@ Congress.gov and other official legislative portals are separate expert projects
 [2] [California Legislative Information — official home and downloadable database link](https://leginfo.legislature.ca.gov/faces/home.xhtml)
 
 [3] [California Legislative Information — official Downloadable Database index](https://downloads.leginfo.legislature.ca.gov/)
+
+[4] [California Legislative Information — Downloadable Database README](https://downloads.leginfo.legislature.ca.gov/pubinfo_Readme.pdf)

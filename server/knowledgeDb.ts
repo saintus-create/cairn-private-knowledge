@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { getDb } from "./db";
-import { collectionPages, collections, importBatches, pageSnapshots, passages, projects, uploadedDocuments } from "../drizzle/schema";
+import { collectionPages, collections, importBatches, pageSnapshots, passages, projects, sourceArchives, uploadedDocuments } from "../drizzle/schema";
 import { approvedCollectionUrls, chunkSnapshot, scrapeSnapshot } from "./websiteSafety";
 import { buildEvidenceResponse, queryTerms } from "./evidence";
 import { invokeLLM } from "./_core/llm";
@@ -28,6 +28,45 @@ type FamilyCodeSourceMap = {
     }>;
   }>;
 };
+
+type OfficialFamilyCodeRecord = {
+  recordKey: string;
+  code: "FAM";
+  sectionNumber: string;
+  statute: { year: string | null; chapter: string | null; section: string | null };
+  effectiveDate: string | null;
+  sourceRowId: string | null;
+  hierarchy: { division: string | null; title: string | null; part: string | null; chapter: string | null; article: string | null };
+  history: string | null;
+  sourceFile: string;
+  active: boolean;
+  sourceSystem: string | null;
+  recordUpdatedAt: string | null;
+  text: string;
+  textSha256: string;
+  archive: {
+    fileName: string;
+    sourceUrl: string;
+    archiveSha256: string;
+    archiveBytes: number;
+    observedLastModified: string;
+    observedEtag: string;
+    acquiredAt: string;
+  };
+};
+
+type OfficialFamilyCodeManifest = {
+  corpus: string;
+  sourceAuthority: "official_primary";
+  archive: OfficialFamilyCodeRecord["archive"];
+  activeRecordCount: number;
+};
+
+function batchesOf<T>(items: T[], size: number) {
+  const batches: T[][] = [];
+  for (let index = 0; index < items.length; index += size) batches.push(items.slice(index, index + size));
+  return batches;
+}
 
 export async function familyCodeOfficialUrls() {
   const response = await fetch(FAMILY_CODE_SOURCE_MAP_URL, { headers: { accept: "application/json", "user-agent": "CairnPrimaryLawBootstrap/1.0" } });
@@ -57,6 +96,115 @@ export async function familyCodeOfficialUrls() {
   if (!urls.length) throw new Error("The Family Code source map did not contain usable official statutory routes.");
   if (urls.length > MAX_PRIMARY_LAW_MANIFEST_URLS) throw new Error("The Family Code source map exceeds the current staged-import safety limit.");
   return urls;
+}
+
+export async function importOfficialFamilyCodeCorpus(input: {
+  userId: number;
+  projectId: number;
+  collectionId: number;
+  manifest: OfficialFamilyCodeManifest;
+  records: OfficialFamilyCodeRecord[];
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("The private data store is not available yet.");
+  const project = await getProject(input.userId, input.projectId);
+  const collection = await getCollection(input.userId, input.collectionId);
+  if (!project || project.projectKind !== "primary_law") throw new Error("Primary-law corpus imports require the owner’s primary-law project.");
+  if (!collection || collection.projectId !== project.id || collection.sourceAuthority !== "official_primary") throw new Error("Primary-law corpus imports require the matching official-primary collection.");
+  const archive = input.manifest.archive;
+  if (input.manifest.corpus !== "California Family Code" || input.manifest.sourceAuthority !== "official_primary") throw new Error("The supplied manifest is not an official California Family Code corpus.");
+  if (!/^[a-f0-9]{64}$/i.test(archive.archiveSha256) || !/^https:\/\/downloads\.leginfo\.legislature\.ca\.gov\//.test(archive.sourceUrl)) throw new Error("The supplied corpus does not identify an approved official California archive.");
+  if (!input.records.length || input.records.length !== input.manifest.activeRecordCount) throw new Error("The supplied corpus record count does not match its manifest.");
+  const seenKeys = new Set<string>();
+  for (const record of input.records) {
+    if (record.code !== "FAM" || !record.active || !record.recordKey || !record.sectionNumber || !record.text || record.text.length < 20) throw new Error("The corpus includes an invalid Family Code record.");
+    if (record.archive.archiveSha256 !== archive.archiveSha256 || record.archive.sourceUrl !== archive.sourceUrl) throw new Error("The corpus mixes records from different archive snapshots.");
+    if (createHash("sha256").update(record.text).digest("hex") !== record.textSha256) throw new Error(`The statutory text hash did not match ${record.recordKey}.`);
+    if (seenKeys.has(record.recordKey)) throw new Error(`The corpus repeats the official record key ${record.recordKey}.`);
+    seenKeys.add(record.recordKey);
+  }
+  const priorArchive = await db.select({ id: sourceArchives.id }).from(sourceArchives).where(and(eq(sourceArchives.collectionId, collection.id), eq(sourceArchives.archiveSha256, archive.archiveSha256))).limit(1);
+  if (priorArchive[0]) return { archiveId: priorArchive[0].id, recordCount: 0, alreadyImported: true };
+
+  const extract = Buffer.from(`${input.records.map((record) => JSON.stringify(record)).join("\n")}\n`, "utf8");
+  const extractHash = createHash("sha256").update(extract).digest("hex");
+  const storedExtract = await storagePut(`users/${input.userId}/primary-law/${archive.archiveSha256}/family-code-sections.jsonl`, extract, "application/x-ndjson");
+  const now = new Date();
+  const batchResult = await db.insert(importBatches).values({
+    collectionId: collection.id,
+    status: "running",
+    requestedCount: input.records.length,
+    processedCount: 0,
+    unchangedCount: 0,
+    failedCount: 0,
+  });
+  const batchId = Number(batchResult[0].insertId);
+  try {
+    const pageInputs = input.records.map((record) => {
+      const canonicalUrl = `${archive.sourceUrl}#${encodeURIComponent(record.recordKey)}`;
+      const title = `California Family Code § ${record.sectionNumber}`;
+      const hierarchy = [record.hierarchy.division, record.hierarchy.title, record.hierarchy.part, record.hierarchy.chapter, record.hierarchy.article].filter(Boolean).join(" · ");
+      const headings = [{ level: 1, text: title, anchor: `official:${record.recordKey}` }, ...(hierarchy ? [{ level: 2, text: hierarchy, anchor: `official:${record.recordKey}:hierarchy` }] : [])];
+      const text = `${title}\n\n${record.text}${record.history ? `\n\nOfficial history: ${record.history}` : ""}`;
+      return { record, canonicalUrl, title, headings, text, contentHash: createHash("sha256").update(text).digest("hex") };
+    });
+    for (const batch of batchesOf(pageInputs, 150)) {
+      await db.insert(collectionPages).values(batch.map((page) => ({
+        collectionId: collection.id,
+        importBatchId: batchId,
+        canonicalUrl: page.canonicalUrl,
+        pageTitle: page.title,
+        headings: page.headings,
+        cleanText: page.text,
+        contentHash: page.contentHash,
+        sourceStatus: "ready" as const,
+        fetchedAt: now,
+        importedAt: now,
+      })));
+    }
+    const importedPages = await db.select({ id: collectionPages.id, canonicalUrl: collectionPages.canonicalUrl }).from(collectionPages).where(eq(collectionPages.collectionId, collection.id));
+    const pageIdByUrl = new Map(importedPages.map((page) => [page.canonicalUrl, page.id]));
+    if (pageIdByUrl.size !== pageInputs.length) throw new Error("The official section pages did not persist completely.");
+    for (const batch of batchesOf(pageInputs, 100)) {
+      const snapshots = batch.map((page) => ({
+        pageId: pageIdByUrl.get(page.canonicalUrl)!,
+        importBatchId: batchId,
+        version: 1,
+        pageTitle: page.title,
+        headings: page.headings,
+        cleanText: page.text,
+        contentHash: page.contentHash,
+        fetchedAt: now,
+      }));
+      await db.insert(pageSnapshots).values(snapshots);
+      const sectionPassages = batch.flatMap((page) => chunkSnapshot({ canonicalUrl: page.canonicalUrl, title: page.title, headings: page.headings, text: page.text, contentHash: page.contentHash, fetchedAt: now }).map((draft) => ({ ...draft, collectionId: collection.id, pageId: pageIdByUrl.get(page.canonicalUrl)! })));
+      for (const passageBatch of batchesOf(sectionPassages, 100)) if (passageBatch.length) await db.insert(passages).values(passageBatch);
+    }
+    const archiveResult = await db.insert(sourceArchives).values({
+      collectionId: collection.id,
+      sourceUrl: archive.sourceUrl,
+      fileName: archive.fileName,
+      archiveSha256: archive.archiveSha256,
+      observedEtag: archive.observedEtag,
+      observedLastModified: new Date(archive.observedLastModified),
+      acquiredAt: new Date(archive.acquiredAt),
+      recordCount: input.records.length,
+      extractStorageKey: storedExtract.key,
+      extractStorageUrl: storedExtract.url,
+      extractSha256: extractHash,
+    });
+    await db.update(importBatches).set({ status: "complete", processedCount: input.records.length, completedAt: now }).where(eq(importBatches.id, batchId));
+    await db.update(collections).set({
+      importStatus: "ready",
+      rootUrl: archive.sourceUrl,
+      scope: `Official California Family Code text extracted from ${archive.fileName}, acquired ${archive.acquiredAt}. Cairn retains active official section records, archive identity, source hashes, and immutable snapshots; commentary is excluded.`,
+    }).where(eq(collections.id, collection.id));
+    return { archiveId: Number(archiveResult[0].insertId), recordCount: input.records.length, alreadyImported: false };
+  } catch (error) {
+    await db.update(importBatches).set({ status: "failed", failedCount: input.records.length, completedAt: new Date() }).where(eq(importBatches.id, batchId));
+    await db.update(collections).set({ importStatus: "attention" }).where(eq(collections.id, collection.id));
+    throw error;
+  }
 }
 
 export async function getProject(userId: number, projectId: number) {
@@ -518,7 +666,7 @@ export async function answerFromCollection(userId: number, collectionId: number,
   if (!collection) throw new Error("Collection not found.");
   const terms = queryTerms(question);
   if (!terms.length) throw new Error("Ask a more specific question using at least one meaningful term.");
-  const predicates = terms.map((term) => like(passages.text, `%${term}%`));
+  const predicates = terms.map((term) => or(like(passages.text, `%${term}%`), like(collectionPages.pageTitle, `%${term}%`)));
   const rows = await db
     .select({
       passageId: passages.id,
@@ -555,7 +703,7 @@ export async function answerFromProject(userId: number, projectId: number, quest
   if (!project) throw new Error("Project not found.");
   const terms = queryTerms(question);
   if (!terms.length) throw new Error("Ask a more specific question using at least one meaningful term.");
-  const predicates = terms.map((term) => like(passages.text, `%${term}%`));
+  const predicates = terms.map((term) => or(like(passages.text, `%${term}%`), like(collectionPages.pageTitle, `%${term}%`)));
   const rows = await db
     .select({
       passageId: passages.id,

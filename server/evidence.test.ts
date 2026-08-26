@@ -29,6 +29,37 @@ describe("evidence-first answers", () => {
     expect(citationUrl("https://example.org/guide", "text:Evidence trail", "ignored")).toBe("https://example.org/guide#:~:text=Evidence%20trail");
   });
 
+  it("prioritizes an exact statutory section title and preserves its official record anchor", () => {
+    const result = buildEvidenceResponse({
+      collection: "California Family Code",
+      answerMode: "extractive",
+      question: "What does Family Code section 5602 provide?",
+      rows: [
+        { passageId: 1, pageTitle: "California Family Code § 5602.", headingPath: "California Family Code § 5602.", anchor: "official:FAM5602.200080870", url: "https://downloads.leginfo.legislature.ca.gov/pubinfo_2025.zip#FAM5602.200080870", passageText: "An obligee may register an order issued in this state using the same procedures specified in subdivision (a) of Section 5601." },
+        { passageId: 2, pageTitle: "California Family Code § 5242.", headingPath: "California Family Code § 5242.", anchor: "official:FAM5242.199216210", url: "https://downloads.leginfo.legislature.ca.gov/pubinfo_2025.zip#FAM5242.199216210", passageText: "Service of the assignment order creates a lien on the earnings of the employee." },
+      ],
+    });
+    expect(result.status).toBe("evidence");
+    expect(result.citations[0]?.title).toBe("California Family Code § 5602.");
+    expect(result.citations[0]?.url).toBe("https://downloads.leginfo.legislature.ca.gov/pubinfo_2025.zip#FAM5602.200080870");
+  });
+
+  it("collapses several matched passages from one official statutory section into one archive citation", () => {
+    const url = "https://downloads.leginfo.legislature.ca.gov/pubinfo_2025.zip#FAM5602.200080870";
+    const result = buildEvidenceResponse({
+      collection: "California Family Code",
+      answerMode: "extractive",
+      question: "What does Family Code section 5602 provide?",
+      rows: [
+        { passageId: 1, pageTitle: "California Family Code § 5602.", headingPath: "California Family Code § 5602.", anchor: "official:FAM5602.200080870", url, passageText: "An obligee may register an order under Section 5602 using the stated procedures." },
+        { passageId: 2, pageTitle: "California Family Code § 5602.", headingPath: "California Family Code § 5602.", anchor: "text:Additional procedure", url, passageText: "The clerk of the court shall file the documents under Section 5602." },
+      ],
+    });
+    expect(result.status).toBe("evidence");
+    expect(result.citations).toHaveLength(1);
+    expect(result.citations[0]?.url).toBe(url);
+  });
+
   it("refuses repeated promotional boilerplate even when it contains the question terms", () => {
     const result = buildEvidenceResponse({ collection: "Example", answerMode: "extractive", question: "What is Fadr?", rows: [{ passageId: 2, pageTitle: "Promotion", headingPath: "Overview", anchor: "text:Introducing", url: "https://example.org/promotion", passageText: "Introducing Pro Stems 50 percent Off Fadr Plus ".repeat(8) }] });
     expect(result.status).toBe("insufficient-evidence");

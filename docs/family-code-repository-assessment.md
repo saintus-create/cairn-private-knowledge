@@ -23,6 +23,8 @@ The California Legislative Information home page links to an official **Download
 
 The official download index exposes biennial archives through `pubinfo_2025.zip` (about 1.1 GB), smaller dated incremental archives, and daily files that are also approximately 1.0 GB. The directory is therefore an official acquisition candidate, but not a file that should be pulled into Cairn’s autoscaled runtime or browser workflow wholesale. A Family Code importer should use a separately provisioned, bounded preparation job to inspect the database format, extract only the relevant official code records, preserve the archive date/version, and then upload the selected text and metadata into Cairn-owned storage.[5]
 
+The official Downloadable Database README identifies `codes.tbl.sql` / `CODES_TBL.dat` as the code-table load definition/data and `law_section_tbl.sql` / `LAW_SECTION_TBL.dat` as the law-section load definition/data. It also lists `LAW_SECTION_TBL_1.lob` and `LAW_SECTION_TBL_2.lob` as large-object files associated with law-section records. The preparation worker should begin by validating those declared table relationships against a selected official archive, then select the `FAM` code and only its associated law-section records; it should not assume that a copied website page is authoritative.[6]
+
 The California Judicial Branch Rules of Court index is a usable official companion source. It lists **Title Five: Family and Juvenile Rules (Rules 5.1–5.906)** as a separately downloadable official PDF, so the Family Code expert should keep that title as its own named source rather than merging it into statutory text.[2]
 
 Congress.gov identifies itself as the official U.S. federal legislative-information website and exposes distinct legislation, bill-text, Public Laws/Statutes, U.S. Code, and statute-compilation routes. A future federal expert should retain these as distinct source types and never replace statute text with CRS reports or other explanatory material by default.[3]
@@ -42,3 +44,5 @@ Congress.gov identifies itself as the official U.S. federal legislative-informat
 [4] [California Legislative Information — home page](https://leginfo.legislature.ca.gov/faces/home.xhtml)
 
 [5] [California Legislative Information — official Downloadable Database index](https://downloads.leginfo.legislature.ca.gov/)
+
+[6] [California Legislative Information — Downloadable Database README](https://downloads.leginfo.legislature.ca.gov/pubinfo_Readme.pdf)
