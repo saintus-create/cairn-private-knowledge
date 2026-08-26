@@ -77,3 +77,5 @@
 - [ ] Verify the darker bottom gradient retains comfortable contrast at desktop and mobile breakpoints.
 - [x] Replace pronounced viewport gradients with a restrained dark micro texture.
 - [ ] Verify the micro texture remains nearly imperceptible and preserves compositor contrast at desktop and mobile breakpoints.
+- [x] Apply font-smoothing and flatter typography rendering across the dark Cairn interface.
+- [ ] Verify cleaner text clarity and contrast on desktop and mobile surfaces.

@@ -105,7 +105,13 @@
   --composer-muted: oklch(0.68 0.022 245);
 }
 
-html { background: var(--background); }
+html {
+  background: var(--background);
+  text-rendering: optimizeLegibility;
+  font-kerning: normal;
+  font-synthesis: none;
+  font-optical-sizing: auto;
+}
 
 body {
   margin: 0;
@@ -114,6 +120,9 @@ body {
   color: var(--foreground);
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   letter-spacing: -0.012em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-smooth: always;
 }
 
 .cairn-viewport { background: var(--background); }
