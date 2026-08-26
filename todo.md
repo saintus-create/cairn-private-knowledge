@@ -107,4 +107,4 @@
 - [x] Keep active-project retrieval strictly contextual by default, reserving any all-project search for an explicit future action with visible source boundaries.
 - [x] Audit the current Manus-dependent authentication, storage, model, database, and hosting assumptions against Cairn’s independent ownership goal.
 - [x] Define a portable Cairn-owned authentication, private file-storage, database, and deployment architecture that does not require a user to sign in through Manus.
-- [ ] Create a safe migration plan that preserves private project data, source snapshots, uploaded documents, citations, and existing GitHub backup ownership.
+- [x] Create a safe migration plan that preserves private project data, source snapshots, uploaded documents, citations, and existing GitHub backup ownership.
