@@ -91,3 +91,6 @@
 - [x] Reject repetitive marketing boilerplate and low-quality extracted pages before they become evidence passages.
 - [x] Return a clear insufficient-evidence outcome instead of presenting unsuitable source text as support.
 - [x] Validate source-quality rejection against the screenshot-confirmed low-quality content pattern.
+- [x] Replace the modal document uploader with a composer-adjacent sliding source card.
+- [ ] Verify the sliding upload card preserves file selection, progress feedback, and mobile keyboard usability.
+- [x] Add a composer-triggered sidecar upload sheet that previews the selected document before ingestion.
