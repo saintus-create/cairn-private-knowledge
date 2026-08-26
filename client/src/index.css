@@ -100,9 +100,9 @@
   --sidebar-ring: oklch(0.69 0.14 235);
   --accent-signal: oklch(0.67 0.16 235);
   --accent-signal-foreground: oklch(0.15 0.025 255);
-  --composer-surface: oklch(0.185 0.026 255);
+  --composer-surface: oklch(0.245 0.009 260);
   --composer-foreground: oklch(0.93 0.012 245);
-  --composer-muted: oklch(0.62 0.028 245);
+  --composer-muted: oklch(0.68 0.022 245);
 }
 
 html { background: var(--background); }

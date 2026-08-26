@@ -66,3 +66,5 @@
 - [ ] Verify the cool palette maintains readable contrast in mobile composer and active source modes.
 - [x] Make a deep blue-black dark mode the intentional primary Cairn environment with a restrained azure signal.
 - [ ] Verify contrast and readability for dark mobile composer, inline source modes, and evidence views.
+- [x] Remove the internal composer separator and establish a unified charcoal dialogue surface.
+- [ ] Verify the refined charcoal composer remains balanced and readable on mobile and desktop.
