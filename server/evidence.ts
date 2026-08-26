@@ -39,7 +39,7 @@ export function buildEvidenceResponse(input: {
   const terms = queryTerms(input.question);
   const ranked = input.rows
     .map((row) => ({ ...row, score: terms.filter((term) => row.passageText.toLowerCase().includes(term)).length }))
-    .filter((row) => row.score > 0)
+    .filter((row) => row.score > 0 && assessSourceQuality(row.passageText).usable)
     .sort((a, b) => b.score - a.score)
     .slice(0, 4);
   if (!ranked.length) {
@@ -47,7 +47,7 @@ export function buildEvidenceResponse(input: {
       status: "insufficient-evidence" as const,
       collection: input.collection,
       answerMode: input.answerMode,
-      answer: "Insufficient evidence in this collection to answer that question. Try a narrower question or import a source that covers it.",
+      answer: "Insufficient reliable evidence in this collection to answer that question. Cairn excluded unsuitable or repetitive source text; try a narrower question or import a source that directly covers it.",
       citations: [],
       relatedEntries: [],
       synthesized: false,
@@ -71,3 +71,4 @@ export function buildEvidenceResponse(input: {
     synthesized: false,
   };
 }
+import { assessSourceQuality } from "./sourceQuality";

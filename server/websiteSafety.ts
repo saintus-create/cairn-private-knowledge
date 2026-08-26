@@ -2,6 +2,7 @@ import { load } from "cheerio";
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import type { CleanSnapshot, PassageDraft, ScopePreview } from "./knowledgeTypes";
+import { assessSourceQuality } from "./sourceQuality";
 
 const MAX_PAGE_BYTES = 1_500_000;
 const MAX_PREVIEW_LINKS = 180;
@@ -213,6 +214,8 @@ export async function scrapeSnapshot(value: string): Promise<CleanSnapshot> {
   const html = await response.text();
   const cleaned = textFromHtml(html, resolved.toString());
   if (cleaned.text.length < 80) throw new Error("The page did not contain enough readable public text to import.");
+  const quality = assessSourceQuality(cleaned.text);
+  if (!quality.usable) throw new Error(`The page was excluded because its extracted text appears to be ${quality.reason}.`);
   return {
     canonicalUrl: canonicalizeUrl(resolved.toString()),
     title: cleaned.title,
@@ -248,6 +251,7 @@ export function chunkSnapshot(snapshot: CleanSnapshot): PassageDraft[] {
     for (let start = 0; start < paragraph.length; start += 850) {
       const text = paragraph.slice(start, start + 850).trim();
       if (text.length < 45) continue;
+      if (!assessSourceQuality(text).usable) continue;
       passages.push({
         position,
         headingPath: headingStack.filter(Boolean).join(" / ") || "Page overview",

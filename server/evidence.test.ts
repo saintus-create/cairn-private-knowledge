@@ -28,4 +28,10 @@ describe("evidence-first answers", () => {
   it("uses a text fragment when the source has no native heading id", () => {
     expect(citationUrl("https://example.org/guide", "text:Evidence trail", "ignored")).toBe("https://example.org/guide#:~:text=Evidence%20trail");
   });
+
+  it("refuses repeated promotional boilerplate even when it contains the question terms", () => {
+    const result = buildEvidenceResponse({ collection: "Example", answerMode: "extractive", question: "What is Fadr?", rows: [{ passageId: 2, pageTitle: "Promotion", headingPath: "Overview", anchor: "text:Introducing", url: "https://example.org/promotion", passageText: "Introducing Pro Stems 50 percent Off Fadr Plus ".repeat(8) }] });
+    expect(result.status).toBe("insufficient-evidence");
+    expect(result.answer).toContain("excluded unsuitable or repetitive");
+  });
 });

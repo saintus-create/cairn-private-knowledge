@@ -88,3 +88,6 @@
 - [x] Redesign post-command answers as a dark editorial reading surface with inline evidence citations.
 - [x] Present retrieval matches as a quiet title, excerpt, and arrow index rather than chat-like cards.
 - [ ] Verify the editorial answer and result-index experience on desktop and mobile.
+- [x] Reject repetitive marketing boilerplate and low-quality extracted pages before they become evidence passages.
+- [x] Return a clear insufficient-evidence outcome instead of presenting unsuitable source text as support.
+- [x] Validate source-quality rejection against the screenshot-confirmed low-quality content pattern.
