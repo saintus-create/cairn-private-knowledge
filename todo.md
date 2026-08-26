@@ -54,3 +54,4 @@
 - [x] Add compact icon-pill navigation for post-entry source and collection actions.
 - [ ] Validate upload, grounded-answer behavior, responsive navigation, and physical mobile keyboard behavior.
 - [x] Add a restrained animated upload state with clear preparation, reading, and evidence-indexing progress.
+- [ ] Create and verify an independent private GitHub backup of the current Cairn project.
