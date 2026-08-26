@@ -75,3 +75,5 @@
 - [ ] Verify the gradient preserves dark-mode contrast and composer legibility at desktop and mobile breakpoints.
 - [x] Test a stronger bottom-weighted blue-black vignette behind the composer.
 - [ ] Verify the darker bottom gradient retains comfortable contrast at desktop and mobile breakpoints.
+- [x] Replace pronounced viewport gradients with a restrained dark micro texture.
+- [ ] Verify the micro texture remains nearly imperceptible and preserves compositor contrast at desktop and mobile breakpoints.
