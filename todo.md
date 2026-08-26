@@ -64,3 +64,5 @@
 - [ ] Verify mode expansion and collapse do not obscure the prompt or reintroduce mobile clutter.
 - [x] Replace the warm neutral visual system with cool monochrome surfaces and a restrained functional accent.
 - [ ] Verify the cool palette maintains readable contrast in mobile composer and active source modes.
+- [x] Make a deep blue-black dark mode the intentional primary Cairn environment with a restrained azure signal.
+- [ ] Verify contrast and readability for dark mobile composer, inline source modes, and evidence views.
