@@ -58,3 +58,7 @@
 - [x] Suppress empty-focus suggestion cards and keep the mobile composer visually stable when the keyboard opens.
 - [ ] Confirm on a physical phone that typing begins without unsolicited cards, reflow, or viewport clutter.
 - [x] Replace website-explainer copy with a URL-aware command placeholder and URL-only source guidance.
+- [x] Replace the single-row command bar with a two-tier composer: prompt above, source actions below.
+- [ ] Verify the two-tier composer remains calm and usable with the mobile keyboard open.
+- [x] Add inline expandable document-upload and web-source modes to the second composer row.
+- [ ] Verify mode expansion and collapse do not obscure the prompt or reintroduce mobile clutter.

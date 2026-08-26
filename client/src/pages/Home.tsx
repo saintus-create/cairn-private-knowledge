@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { collectionNameFromUrl, commandIntent, firstPublicUrl } from "@/lib/codexCommand";
 import { getComposerSuggestions } from "@/lib/composerSuggestions";
 import { trpc } from "@/lib/trpc";
-import { ArrowUp, BookOpen, Check, ChevronRight, ExternalLink, FileUp, Globe2, LibraryBig, Loader2, LogOut, Paperclip, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowUp, BookOpen, Check, ChevronRight, ExternalLink, FileUp, Globe2, LibraryBig, Loader2, LogOut, Paperclip, Plus, RefreshCw, Sparkles, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -46,12 +46,23 @@ type ChatTurn =
 const id = () => crypto.randomUUID();
 const sourcePath = (value: string) => new URL(value, "https://cairn.local").pathname || "/";
 
-function CommandBar({ value, onChange, onSubmit, busy, compact = false, expanded = false, inputRef, onFocus, onBlur, onUpload }: { value: string; onChange: (value: string) => void; onSubmit: () => void; busy: boolean; compact?: boolean; expanded?: boolean; inputRef?: React.RefObject<HTMLInputElement | null>; onFocus?: () => void; onBlur?: () => void; onUpload?: () => void }) {
-  return <form onSubmit={(event) => { event.preventDefault(); onSubmit(); }} className={`flex w-full items-center gap-3 bg-foreground text-background transition-[border-radius,padding,box-shadow] duration-200 ease-out focus-within:shadow-[0_20px_58px_rgba(0,0,0,.28)] ${compact ? "rounded-full px-4 py-2 shadow-[0_10px_30px_rgba(0,0,0,.12)]" : expanded ? "rounded-2xl px-5 py-4 shadow-[0_16px_42px_rgba(0,0,0,.18)]" : "rounded-full px-5 py-3 shadow-[0_18px_50px_rgba(0,0,0,.18)]"}`}>
-    <BookOpen className={`shrink-0 opacity-65 ${compact ? "h-4 w-4" : "h-5 w-5"}`} aria-hidden />
-    <input ref={inputRef} value={value} onFocus={onFocus} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} placeholder="Ask Cairn · https://…" className={`min-w-0 flex-1 bg-transparent text-background outline-none placeholder:text-background/45 ${compact ? "text-sm" : "text-base"}`} />
-    {onUpload && <button type="button" onClick={onUpload} className="shrink-0 rounded-full p-1.5 text-background/65 transition-colors hover:bg-background/10 hover:text-background" aria-label="Upload a private document"><Paperclip className="h-4 w-4" /></button>}
-    <button type="submit" disabled={!value.trim() || busy} className={`flex shrink-0 items-center justify-center rounded-full bg-background text-foreground transition-transform active:scale-95 disabled:opacity-35 ${compact ? "h-7 w-7" : "h-9 w-9"}`} aria-label="Send command">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}</button>
+type ComposerMode = "idle" | "document" | "web";
+
+function CommandBar({ value, onChange, onSubmit, busy, compact = false, expanded: _expanded = false, inputRef, onFocus, onBlur, onUpload, onWebSource, onSources, mode = "idle", onModeChange }: { value: string; onChange: (value: string) => void; onSubmit: () => void; busy: boolean; compact?: boolean; expanded?: boolean; inputRef?: React.RefObject<HTMLInputElement | null>; onFocus?: () => void; onBlur?: () => void; onUpload?: () => void; onWebSource?: () => void; onSources?: () => void; mode?: ComposerMode; onModeChange?: (mode: ComposerMode) => void }) {
+  const iconSize = compact ? "h-3.5 w-3.5" : "h-4 w-4";
+  const selectMode = (next: Exclude<ComposerMode, "idle">) => onModeChange?.(mode === next ? "idle" : next);
+  return <form onSubmit={(event) => { event.preventDefault(); onSubmit(); }} className={`flex w-full flex-col overflow-hidden rounded-[26px] bg-foreground text-background shadow-[0_18px_50px_rgba(0,0,0,.18)] transition-shadow duration-200 ease-out focus-within:shadow-[0_20px_58px_rgba(0,0,0,.28)] ${compact ? "" : ""}`}>
+    <div className={`flex w-full items-center gap-3 ${compact ? "px-4 py-2.5" : "px-5 py-3.5"}`}>
+      <BookOpen className={`shrink-0 opacity-65 ${compact ? "h-4 w-4" : "h-5 w-5"}`} aria-hidden />
+      <input ref={inputRef} value={value} onFocus={onFocus} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} placeholder="Ask Cairn · https://…" className={`min-w-0 flex-1 bg-transparent text-background outline-none placeholder:text-background/45 ${compact ? "text-sm" : "text-base"}`} />
+      <button type="submit" disabled={!value.trim() || busy} className={`flex shrink-0 items-center justify-center rounded-full bg-background text-foreground transition-transform active:scale-95 disabled:opacity-35 ${compact ? "h-7 w-7" : "h-9 w-9"}`} aria-label="Send command">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}</button>
+    </div>
+    <div className={`flex items-center gap-1 border-t border-background/10 ${compact ? "px-3 py-1.5" : "px-4 py-2"}`} aria-label="Source actions">
+      {onUpload && <button type="button" title="Add a private document" onClick={() => selectMode("document")} className={`flex items-center justify-center rounded-full transition-colors ${mode === "document" ? "bg-background text-foreground" : "text-background/70 hover:bg-background/10 hover:text-background"} ${compact ? "h-7 w-7" : "h-8 w-8"}`} aria-label="Add a private document"><Paperclip className={iconSize} /></button>}
+      {onWebSource && <button type="button" title="Add a web source" onClick={() => selectMode("web")} className={`flex items-center justify-center rounded-full transition-colors ${mode === "web" ? "bg-background text-foreground" : "text-background/70 hover:bg-background/10 hover:text-background"} ${compact ? "h-7 w-7" : "h-8 w-8"}`} aria-label="Add a web source"><Globe2 className={iconSize} /></button>}
+      {onSources && <button type="button" title="Open sources" onClick={onSources} className={`flex items-center justify-center rounded-full text-background/70 transition-colors hover:bg-background/10 hover:text-background ${compact ? "h-7 w-7" : "h-8 w-8"}`} aria-label="Open sources"><LibraryBig className={iconSize} /></button>}
+    </div>
+    <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${mode === "idle" ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}><div className="overflow-hidden"><div className={`flex items-center gap-3 border-t border-background/10 ${compact ? "px-4 py-2" : "px-5 py-3"}`}>{mode === "document" ? <><FileUp className={iconSize} /><span className="min-w-0 flex-1 text-sm text-background/80">Private PDF, text, or Markdown</span><button type="button" onClick={onUpload} className="rounded-full bg-background px-3 py-1.5 text-xs font-medium text-foreground">Choose file</button></> : <><Globe2 className={iconSize} /><span className="min-w-0 flex-1 text-sm text-background/80">Prepare a bounded web source</span><button type="button" onClick={onWebSource} className="rounded-full bg-background px-3 py-1.5 text-xs font-medium text-foreground">Use URL</button></>}<button type="button" onClick={() => onModeChange?.("idle")} className="rounded-full p-1 text-background/65 hover:bg-background/10 hover:text-background" aria-label="Close source action"><X className={iconSize} /></button></div></div></div>
   </form>;
 }
 
@@ -68,6 +79,7 @@ export default function Home() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadStage, setUploadStage] = useState<"Preparing file" | "Reading pages" | "Indexing evidence" | null>(null);
+  const [composerMode, setComposerMode] = useState<ComposerMode>("idle");
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>({ name: "", scope: "", audience: "", tone: "", answerMode: "extractive", aiSynthesisEnabled: false });
   const inputRef = useRef<HTMLInputElement>(null);
@@ -146,6 +158,7 @@ export default function Home() {
     const text = command.trim();
     if (!text || busy) return;
     if (!isAuthenticated) { startLogin(); return; }
+    setComposerMode("idle");
     setCommand("");
     append({ id: id(), kind: "user", text });
     const intent = commandIntent(text);
@@ -246,7 +259,7 @@ export default function Home() {
       </nav>
     </header>}
 
-    {!awake ? <><main className="mx-auto flex h-full w-full max-w-2xl flex-col items-center justify-center px-6 text-center"><h1 className="enter-up font-serif text-5xl tracking-tight sm:text-6xl">Cairn</h1></main><div className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-6 sm:px-7 sm:pb-0"><div className="mx-auto w-full max-w-2xl"><div className={`mb-2 space-y-1.5 transition-[max-height,opacity,transform] duration-200 ease-out ${composerSuggestions.length ? "max-h-56 translate-y-0 opacity-100" : "max-h-0 translate-y-2 overflow-hidden opacity-0"}`}>{composerSuggestions.map((suggestion) => <button key={`${suggestion.label}-${suggestion.detail}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCommand(suggestion.command); inputRef.current?.focus(); }} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-background/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{suggestion.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></button>)}</div><CommandBar inputRef={inputRef} expanded={composerExpanded} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} onUpload={() => setUploadOpen(true)} /></div></div></> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
+    {!awake ? <><main className="mx-auto flex h-full w-full max-w-2xl flex-col items-center justify-center px-6 text-center"><h1 className="enter-up font-serif text-5xl tracking-tight sm:text-6xl">Cairn</h1></main><div className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-6 sm:px-7 sm:pb-0"><div className="mx-auto w-full max-w-2xl"><div className={`mb-2 space-y-1.5 transition-[max-height,opacity,transform] duration-200 ease-out ${composerSuggestions.length ? "max-h-56 translate-y-0 opacity-100" : "max-h-0 translate-y-2 overflow-hidden opacity-0"}`}>{composerSuggestions.map((suggestion) => <button key={`${suggestion.label}-${suggestion.detail}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCommand(suggestion.command); inputRef.current?.focus(); }} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-background/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{suggestion.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></button>)}</div><CommandBar inputRef={inputRef} expanded={composerExpanded} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} mode={composerMode} onModeChange={setComposerMode} onUpload={() => setUploadOpen(true)} onWebSource={() => { setCommand("https://"); setComposerMode("idle"); inputRef.current?.focus(); }} onSources={() => isAuthenticated ? setSourcesOpen(true) : startLogin()} /></div></div></> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="mx-auto w-full max-w-2xl space-y-7 py-8 sm:py-12">
           {turns.map((turn) => <div key={turn.id} className="animate-in fade-in slide-in-from-bottom-1 duration-200">
@@ -258,7 +271,7 @@ export default function Home() {
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <div className="border-t border-border py-4"><CommandBar compact value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} onUpload={() => setUploadOpen(true)} /></div>
+      <div className="border-t border-border py-4"><CommandBar compact value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} mode={composerMode} onModeChange={setComposerMode} onUpload={() => setUploadOpen(true)} onWebSource={() => { setCommand("https://"); setComposerMode("idle"); inputRef.current?.focus(); }} onSources={() => isAuthenticated ? setSourcesOpen(true) : startLogin()} /></div>
     </main>}
 
     <Dialog open={uploadOpen} onOpenChange={(open) => { if (!uploadStage) setUploadOpen(open); }}><DialogContent className="max-w-md rounded-2xl border-border bg-card p-0"><DialogHeader className="border-b border-border p-5 text-left"><DialogTitle className="font-serif text-2xl font-normal">Private document</DialogTitle><DialogDescription>Keep an uploaded PDF, text, or Markdown file as its own inspectable source collection.</DialogDescription></DialogHeader><div className="p-5">{uploadStage ? <div className="flex min-h-36 flex-col items-center justify-center text-center" role="status" aria-live="polite"><div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted"><Loader2 className="h-5 w-5 animate-spin text-foreground" /></div><p className="shimmer-text mt-4 text-sm font-medium">{uploadStage}</p><p className="mt-2 max-w-xs text-xs leading-5 text-muted-foreground">Cairn is keeping the original file private while it prepares cited evidence passages.</p></div> : <><input ref={fileInputRef} type="file" className="sr-only" accept="application/pdf,text/plain,text/markdown,.pdf,.txt,.md,.markdown" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ""; if (file) void importPrivateDocument(file); }} /><button type="button" onClick={() => fileInputRef.current?.click()} className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/40 px-5 py-9 text-center transition-colors hover:bg-muted"><FileUp className="h-5 w-5" /><span className="mt-3 text-sm font-medium">Choose a private document</span><span className="mt-1 text-xs text-muted-foreground">PDF, plain text, or Markdown · up to 20 MB</span></button></>}</div></DialogContent></Dialog>
