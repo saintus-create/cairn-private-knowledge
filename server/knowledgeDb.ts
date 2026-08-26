@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { getDb } from "./db";
-import { collectionPages, collections, importBatches, pageSnapshots, passages, uploadedDocuments } from "../drizzle/schema";
+import { collectionPages, collections, importBatches, pageSnapshots, passages, projects, uploadedDocuments } from "../drizzle/schema";
 import { approvedCollectionUrls, chunkSnapshot, scrapeSnapshot } from "./websiteSafety";
 import { buildEvidenceResponse, queryTerms } from "./evidence";
 import { invokeLLM } from "./_core/llm";
@@ -14,6 +14,50 @@ const parsePdf = require("pdf-parse/lib/pdf-parse.js") as (buffer: Buffer) => Pr
 
 const MAX_UPLOADED_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const SUPPORTED_DOCUMENT_TYPES = new Set(["application/pdf", "text/plain", "text/markdown"]);
+
+export async function getProject(userId: number, projectId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.userId, userId))).limit(1);
+  return rows[0];
+}
+
+export async function ensureDefaultProject(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("The private data store is not available yet.");
+  const existing = await db.select().from(projects).where(eq(projects.userId, userId)).orderBy(asc(projects.id)).limit(1);
+  if (existing[0]) return existing[0];
+  const result = await db.insert(projects).values({ userId, name: "Unfiled research", description: "" });
+  const created = await getProject(userId, Number(result[0].insertId));
+  if (!created) throw new Error("Cairn could not create the first project.");
+  return created;
+}
+
+export async function listProjects(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  await ensureDefaultProject(userId);
+  return db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      description: projects.description,
+      updatedAt: projects.updatedAt,
+      collectionCount: sql<number>`count(${collections.id})`,
+    })
+    .from(projects)
+    .leftJoin(collections, eq(collections.projectId, projects.id))
+    .where(eq(projects.userId, userId))
+    .groupBy(projects.id)
+    .orderBy(desc(projects.updatedAt));
+}
+
+export async function createProject(input: { userId: number; name: string; description?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("The private data store is not available yet.");
+  const result = await db.insert(projects).values({ userId: input.userId, name: input.name, description: input.description ?? "" });
+  return Number(result[0].insertId);
+}
 
 function safeDocumentName(value: string) {
   const cleaned = value.replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim();
@@ -37,13 +81,15 @@ export async function extractUploadedDocumentText(fileName: string, mimeType: st
   return { mimeType: normalizedType, text: cleanText };
 }
 
-export async function importUploadedDocument(input: { userId: number; fileName: string; mimeType: string; base64: string }) {
+export async function importUploadedDocument(input: { userId: number; projectId: number; fileName: string; mimeType: string; base64: string }) {
   const db = await getDb();
   if (!db) throw new Error("The private data store is not available yet.");
   const fileName = safeDocumentName(input.fileName);
   const buffer = Buffer.from(input.base64, "base64");
   if (!buffer.length || buffer.length > MAX_UPLOADED_DOCUMENT_BYTES) throw new Error("Files must be between 1 byte and 20 MB.");
   const extracted = await extractUploadedDocumentText(fileName, input.mimeType, buffer);
+  const project = await getProject(input.userId, input.projectId);
+  if (!project) throw new Error("Project not found.");
   const collectionName = fileName.replace(/\.[^.]+$/, "").slice(0, 80) || "Untitled document";
   const storage = await storagePut(`users/${input.userId}/documents/${Date.now()}-${fileName}`, buffer, extracted.mimeType);
   const contentHash = createHash("sha256").update(extracted.text).digest("hex");
@@ -51,6 +97,7 @@ export async function importUploadedDocument(input: { userId: number; fileName: 
   const now = new Date();
   const collectionResult = await db.insert(collections).values({
     userId: input.userId,
+    projectId: project.id,
     name: collectionName,
     rootUrl: storage.url,
     scope: `Private uploaded source: ${fileName}.`,
@@ -112,9 +159,11 @@ export async function importUploadedDocument(input: { userId: number; fileName: 
   return { documentId: Number(documentResult[0].insertId), collectionId, pageId, fileName, passageCount: drafts.length };
 }
 
-export async function listCollections(userId: number) {
+export async function listCollections(userId: number, projectId?: number) {
   const db = await getDb();
   if (!db) return [];
+  const activeProject = projectId ? await getProject(userId, projectId) : await ensureDefaultProject(userId);
+  if (!activeProject) return [];
   return db
     .select({
       id: collections.id,
@@ -130,7 +179,7 @@ export async function listCollections(userId: number) {
     })
     .from(collections)
     .leftJoin(collectionPages, eq(collectionPages.collectionId, collections.id))
-    .where(eq(collections.userId, userId))
+    .where(and(eq(collections.userId, userId), eq(collections.projectId, activeProject.id)))
     .groupBy(collections.id)
     .orderBy(desc(collections.updatedAt));
 }
@@ -205,6 +254,7 @@ export async function getLatestImportBatch(userId: number, collectionId: number)
 
 export async function createCollection(input: {
   userId: number;
+  projectId: number;
   name: string;
   rootUrl: string;
   scope: string;
@@ -217,6 +267,8 @@ export async function createCollection(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("The private data store is not available yet.");
+  const project = await getProject(input.userId, input.projectId);
+  if (!project) throw new Error("Project not found.");
   const result = await db.insert(collections).values({ ...input, importStatus: "idle" });
   return Number(result[0].insertId);
 }
@@ -412,4 +464,29 @@ export async function answerFromCollection(userId: number, collectionId: number,
     const content = response.choices[0]?.message.content;
     return typeof content === "string" ? content : undefined;
   });
+}
+
+export async function answerFromProject(userId: number, projectId: number, question: string) {
+  const db = await getDb();
+  if (!db) throw new Error("The private data store is not available yet.");
+  const project = await getProject(userId, projectId);
+  if (!project) throw new Error("Project not found.");
+  const terms = queryTerms(question);
+  if (!terms.length) throw new Error("Ask a more specific question using at least one meaningful term.");
+  const predicates = terms.map((term) => like(passages.text, `%${term}%`));
+  const rows = await db
+    .select({
+      passageId: passages.id,
+      passageText: passages.text,
+      headingPath: passages.headingPath,
+      anchor: passages.anchor,
+      pageTitle: collectionPages.pageTitle,
+      url: collectionPages.canonicalUrl,
+    })
+    .from(passages)
+    .innerJoin(collectionPages, eq(passages.pageId, collectionPages.id))
+    .innerJoin(collections, eq(passages.collectionId, collections.id))
+    .where(and(eq(collections.userId, userId), eq(collections.projectId, project.id), or(...predicates)))
+    .limit(80);
+  return buildEvidenceResponse({ collection: project.name, answerMode: "extractive", question, rows });
 }

@@ -96,3 +96,15 @@
 - [x] Add a composer-triggered sidecar upload sheet that previews the selected document before ingestion.
 - [x] Invoke the native device file picker directly from Cairn’s attachment control, opening the sidecar only after selection.
 - [ ] Verify native-picker return, selected-file preview, and import action on a physical mobile browser.
+- [ ] Define a welcoming first-use utility that gives Cairn value before the user understands collections or evidence ingestion.
+- [ ] Add a low-clutter discovery/search transition that helps users move from a broad question or topic into a grounded Cairn source or answer.
+- [ ] Preserve Cairn’s private, evidence-first boundary while making universal exploration and next steps understandable on the initial screen.
+- [ ] Validate the new first-use transition on desktop and a physical mobile browser.
+- [x] Define a private project model that separates unrelated research contexts while allowing multiple websites and documents inside each project.
+- [x] Make collections, source imports, retrieval, and citations project-scoped so one project cannot leak evidence into another.
+- [x] Add a calm project switcher and a “new project” path that fit Cairn’s single-composer interface without becoming a dashboard.
+- [ ] Validate project creation, project switching, source boundaries, and mobile usability with automated coverage and physical-device testing.
+- [x] Keep active-project retrieval strictly contextual by default, reserving any all-project search for an explicit future action with visible source boundaries.
+- [x] Audit the current Manus-dependent authentication, storage, model, database, and hosting assumptions against Cairn’s independent ownership goal.
+- [x] Define a portable Cairn-owned authentication, private file-storage, database, and deployment architecture that does not require a user to sign in through Manus.
+- [ ] Create a safe migration plan that preserves private project data, source snapshots, uploaded documents, citations, and existing GitHub backup ownership.

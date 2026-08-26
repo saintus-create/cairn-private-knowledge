@@ -1,0 +1,27 @@
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { answerFromProject, createProject, listProjects } from "../knowledgeDb";
+import { protectedProcedure, router } from "../_core/trpc";
+
+const projectInput = z.object({
+  name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(220).default(""),
+});
+
+export const projectsRouter = router({
+  list: protectedProcedure.query(({ ctx }) => listProjects(ctx.user.id)),
+  create: protectedProcedure.input(projectInput).mutation(async ({ ctx, input }) => {
+    try {
+      return { projectId: await createProject({ ...input, userId: ctx.user.id }) };
+    } catch (cause) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: cause instanceof Error ? cause.message : "Cairn could not create that project." });
+    }
+  }),
+  answer: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), question: z.string().trim().min(4).max(600) })).mutation(async ({ ctx, input }) => {
+    try {
+      return await answerFromProject(ctx.user.id, input.projectId, input.question);
+    } catch (cause) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: cause instanceof Error ? cause.message : "The project could not answer that question." });
+    }
+  }),
+});

@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { answerFromCollection, createCollection, getCollection, getLatestImportBatch, importUploadedDocument, listCollections, listPageSnapshots, listPages, refreshCollection, runNextImportBatch, startImport, updateProfile } from "../knowledgeDb";
+import { answerFromCollection, createCollection, ensureDefaultProject, getCollection, getLatestImportBatch, importUploadedDocument, listCollections, listPageSnapshots, listPages, refreshCollection, runNextImportBatch, startImport, updateProfile } from "../knowledgeDb";
 import { assertPublicWebsiteUrl, previewWebsiteScope } from "../websiteSafety";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -21,7 +21,7 @@ function error(message: string) {
 }
 
 export const collectionsRouter = router({
-  list: protectedProcedure.query(({ ctx }) => listCollections(ctx.user.id)),
+  list: protectedProcedure.input(z.object({ projectId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => listCollections(ctx.user.id, input?.projectId)),
   get: protectedProcedure.input(z.object({ collectionId: z.number().int().positive() })).query(async ({ ctx, input }) => {
     const collection = await getCollection(ctx.user.id, input.collectionId);
     if (!collection) throw new TRPCError({ code: "NOT_FOUND", message: "Collection not found." });
@@ -41,21 +41,26 @@ export const collectionsRouter = router({
         throw error(cause instanceof Error ? cause.message : "The website scope could not be previewed.");
       }
     }),
-  create: protectedProcedure.input(collectionInput).mutation(async ({ ctx, input }) => {
+  create: protectedProcedure.input(collectionInput.extend({ projectId: z.number().int().positive().optional() })).mutation(async ({ ctx, input }) => {
     try {
       const url = await assertPublicWebsiteUrl(input.rootUrl);
-      return { collectionId: await createCollection({ ...input, rootUrl: url.toString(), userId: ctx.user.id }) };
+      const { projectId, ...collection } = input;
+      const project = projectId ? { id: projectId } : await ensureDefaultProject(ctx.user.id);
+      return { collectionId: await createCollection({ ...collection, projectId: project.id, rootUrl: url.toString(), userId: ctx.user.id }) };
     } catch (cause) {
       throw error(cause instanceof Error ? cause.message : "The collection could not be created.");
     }
   }),
   uploadDocument: protectedProcedure.input(z.object({
+    projectId: z.number().int().positive().optional(),
     fileName: z.string().trim().min(1).max(255),
     mimeType: z.string().trim().max(120),
     base64: z.string().min(4).max(28_000_000),
   })).mutation(async ({ ctx, input }) => {
     try {
-      return await importUploadedDocument({ ...input, userId: ctx.user.id });
+      const { projectId, ...document } = input;
+      const project = projectId ? { id: projectId } : await ensureDefaultProject(ctx.user.id);
+      return await importUploadedDocument({ ...document, projectId: project.id, userId: ctx.user.id });
     } catch (cause) {
       throw error(cause instanceof Error ? cause.message : "The document could not be imported.");
     }

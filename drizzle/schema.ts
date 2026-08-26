@@ -25,9 +25,22 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+export const projects = mysqlTable("projects", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 80 }).notNull(),
+  description: varchar("description", { length: 220 }).notNull().default(""),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("projects_user_idx").on(table.userId),
+  uniqueIndex("projects_user_name_unique").on(table.userId, table.name),
+]);
+
 export const collections = mysqlTable("collections", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
+  projectId: int("projectId").notNull(),
   name: varchar("name", { length: 80 }).notNull(),
   rootUrl: varchar("rootUrl", { length: 1024 }).notNull(),
   scope: text("scope").notNull(),
@@ -41,7 +54,7 @@ export const collections = mysqlTable("collections", {
   importStatus: mysqlEnum("importStatus", ["idle", "importing", "ready", "attention"]).notNull().default("idle"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, (table) => [index("collections_user_idx").on(table.userId)]);
+}, (table) => [index("collections_user_idx").on(table.userId), index("collections_project_idx").on(table.projectId)]);
 
 export const importBatches = mysqlTable("import_batches", {
   id: int("id").autoincrement().primaryKey(),
