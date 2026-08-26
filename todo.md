@@ -94,3 +94,5 @@
 - [x] Replace the modal document uploader with a composer-adjacent sliding source card.
 - [ ] Verify the sliding upload card preserves file selection, progress feedback, and mobile keyboard usability.
 - [x] Add a composer-triggered sidecar upload sheet that previews the selected document before ingestion.
+- [x] Invoke the native device file picker directly from Cairn’s attachment control, opening the sidecar only after selection.
+- [ ] Verify native-picker return, selected-file preview, and import action on a physical mobile browser.
