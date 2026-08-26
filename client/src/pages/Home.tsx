@@ -1,10 +1,13 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/elevenlabs/conversation";
+import { FirstUseStrip } from "@/components/FirstUseStrip";
+import { ResearchStarterCard } from "@/components/ResearchStarterCard";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { collectionNameFromUrl, commandIntent, firstPublicUrl } from "@/lib/codexCommand";
 import { getComposerSuggestions } from "@/lib/composerSuggestions";
 import { documentPreviewLabel } from "@/lib/documentPreview";
+import { emptyProjectNextStep, suggestedProjectName } from "@/lib/projectStart";
 import { trpc } from "@/lib/trpc";
 import { ArrowUp, BookOpen, Check, ChevronRight, FileUp, Globe2, LibraryBig, Loader2, LogOut, Paperclip, Plus, RefreshCw, Sparkles, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -41,6 +44,7 @@ type ProfileDraft = {
 type ChatTurn =
   | { id: string; kind: "user"; text: string }
   | { id: string; kind: "note"; text: string }
+  | { id: string; kind: "starter"; topic: string; projectName?: string }
   | { id: string; kind: "answer"; question: string; answer: Answer }
   | { id: string; kind: "proposal"; proposal: Proposal };
 
@@ -116,6 +120,7 @@ export default function Home() {
   const busy = preview.isPending || create.isPending || createProject.isPending || startImport.isPending || continueImport.isPending || refresh.isPending || updateProfile.isPending || answer.isPending || uploadDocument.isPending;
   const awake = turns.length > 0;
   const activeProject = useMemo(() => projects.data?.find((project) => project.id === activeProjectId) ?? projects.data?.[0], [activeProjectId, projects.data]);
+  const projectNeedsEvidence = Boolean(isAuthenticated && collections.isFetched && !collections.data?.length);
   const composerExpanded = !awake && command.trim().length > 0;
   const composerSuggestions = useMemo(() => getComposerSuggestions({ query: command, expanded: composerExpanded, collection: detail.data?.collection, pages: detail.data?.pages ?? [] }), [command, composerExpanded, detail.data?.collection, detail.data?.pages]);
 
@@ -231,6 +236,11 @@ export default function Home() {
     append({ id: id(), kind: "user", text });
     const intent = commandIntent(text);
     const website = firstPublicUrl(text);
+    if (intent === "project") {
+      setProjectsOpen(true);
+      append({ id: id(), kind: "note", text: "Cairn opened Projects. Choose one to focus your sources, or create a new project for a separate topic." });
+      return;
+    }
     if (intent === "collection") {
       setSourcesOpen(true);
       append({ id: id(), kind: "note", text: "Cairn opened your sources. You can inspect a collection or ask it to refresh when you are ready." });
@@ -243,6 +253,10 @@ export default function Home() {
       } catch (error) {
         append({ id: id(), kind: "note", text: error instanceof Error ? error.message : "Cairn could not inspect that web source." });
       }
+      return;
+    }
+    if (projectNeedsEvidence) {
+      append({ id: id(), kind: "starter", topic: text, projectName: emptyProjectNextStep(activeProject?.name) === "create-project" ? undefined : activeProject?.name });
       return;
     }
     const targetProject = activeProjectId ?? projects.data?.[0]?.id;
@@ -328,12 +342,13 @@ export default function Home() {
       </nav>
     </header>}
 
-    {!awake ? <><main className="mx-auto flex h-full w-full max-w-2xl flex-col items-center justify-center px-6 text-center"><h1 className="enter-up font-serif text-5xl tracking-tight sm:text-6xl">Cairn</h1></main><div className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-6 sm:px-7 sm:pb-0"><div className="mx-auto w-full max-w-2xl"><div className={`mb-2 space-y-1.5 transition-[max-height,opacity,transform] duration-200 ease-out ${composerSuggestions.length ? "max-h-56 translate-y-0 opacity-100" : "max-h-0 translate-y-2 overflow-hidden opacity-0"}`}>{composerSuggestions.map((suggestion) => <button key={`${suggestion.label}-${suggestion.detail}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCommand(suggestion.command); inputRef.current?.focus(); }} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-background/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{suggestion.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></button>)}</div><CommandBar inputRef={inputRef} expanded={composerExpanded} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} mode={composerMode} onModeChange={setComposerMode} onUpload={choosePrivateDocument} onWebSource={() => { setCommand("https://"); setComposerMode("idle"); inputRef.current?.focus(); }} onSources={() => isAuthenticated ? setSourcesOpen(true) : startLogin()} onProjects={() => isAuthenticated ? setProjectsOpen(true) : startLogin()} projectLabel={activeProject?.name} /></div></div></> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
+    {!awake ? <><main className="mx-auto flex h-full w-full max-w-2xl flex-col items-center justify-center px-6 text-center"><h1 className="enter-up font-serif text-5xl tracking-tight sm:text-6xl">Cairn</h1></main><div className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-6 sm:px-7 sm:pb-0"><div className="mx-auto w-full max-w-2xl"><div className="mb-3 flex justify-center"><FirstUseStrip onAsk={() => inputRef.current?.focus()} onProject={() => isAuthenticated ? setProjectsOpen(true) : startLogin()} onSource={() => isAuthenticated ? choosePrivateDocument() : startLogin()} /></div><div className={`mb-2 space-y-1.5 transition-[max-height,opacity,transform] duration-200 ease-out ${composerSuggestions.length ? "max-h-56 translate-y-0 opacity-100" : "max-h-0 translate-y-2 overflow-hidden opacity-0"}`}>{composerSuggestions.map((suggestion) => <button key={`${suggestion.label}-${suggestion.detail}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCommand(suggestion.command); inputRef.current?.focus(); }} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-background/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{suggestion.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></button>)}</div><CommandBar inputRef={inputRef} expanded={composerExpanded} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} mode={composerMode} onModeChange={setComposerMode} onUpload={choosePrivateDocument} onWebSource={() => { setCommand("https://"); setComposerMode("idle"); inputRef.current?.focus(); }} onSources={() => isAuthenticated ? setSourcesOpen(true) : startLogin()} onProjects={() => isAuthenticated ? setProjectsOpen(true) : startLogin()} projectLabel={activeProject?.name} /></div></div></> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="mx-auto w-full max-w-2xl space-y-7 py-8 sm:py-12">
           {turns.map((turn) => <div key={turn.id} className="animate-in fade-in slide-in-from-bottom-1 duration-200">
             {turn.kind === "user" && <div className="max-w-2xl border-l border-white/15 py-1 pl-4"><p className="text-xs text-muted-foreground">Question</p><p className="mt-1 text-base leading-7 text-foreground">{turn.text}</p></div>}
             {turn.kind === "note" && <div className="max-w-xl border-l border-white/15 py-1 pl-4 text-sm leading-6 text-muted-foreground">{turn.text}</div>}
+            {turn.kind === "starter" && <ResearchStarterCard topic={turn.topic} projectName={turn.projectName} onStartProject={() => { setNewProjectName(suggestedProjectName(turn.topic)); setNewProjectDescription(""); setProjectsOpen(true); setNewProjectOpen(true); }} onWebsite={() => { setCommand("https://"); setComposerMode("web"); }} onDocument={choosePrivateDocument} />}
             {turn.kind === "proposal" && <section className="max-w-2xl border-y border-white/10 py-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs text-muted-foreground">Source proposal</p><h2 className="mt-2 font-serif text-2xl tracking-tight">{turn.proposal.name}</h2><p className="mt-1 text-sm text-muted-foreground">{turn.proposal.host}</p></div><Sparkles className="mt-1 h-4 w-4 text-muted-foreground" /></div><p className="mt-5 max-w-xl text-[17px] leading-8">Cairn found {turn.proposal.estimatedPageCount} pages and prepared {Math.min(12, turn.proposal.urls.length)} bounded starting pages. The import stays within this site and preserves snapshots for later inspection.</p><div className="mt-6 flex flex-wrap gap-2"><button disabled={busy} onClick={() => approveProposal(turn.proposal)} className="inline-flex items-center gap-2 rounded-full bg-[var(--accent-signal)] px-4 py-2 text-sm text-[var(--accent-signal-foreground)] disabled:opacity-40"><Check className="h-3.5 w-3.5" /> Approve import</button><button onClick={() => setReviewOpen(true)} className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Review pages</button></div></section>}
             {turn.kind === "answer" && <article className="max-w-2xl"><p className="text-xs text-muted-foreground">{turn.answer.status === "evidence" ? `Evidence from ${turn.answer.collection}` : "Evidence boundary"}</p><h2 className="mt-2 max-w-xl font-serif text-3xl leading-tight tracking-tight sm:text-4xl">{turn.question}</h2>{turn.answer.synthesized ? <div className="mt-6 max-w-xl"><p className="mb-3 text-xs text-muted-foreground">Source-backed answer</p><p className="text-[18px] leading-9 text-foreground">{turn.answer.answer}</p></div> : <div className="mt-6 max-w-xl"><p className="mb-3 text-xs text-muted-foreground">Supporting passages</p><div className="space-y-5 text-[18px] leading-9 text-foreground">{turn.answer.status === "evidence" ? turn.answer.citations.map((citation, index) => <p key={citation.id}>{citation.excerpt} <a href={citation.url} target="_blank" rel="noreferrer" className="ml-1 font-mono text-xs text-muted-foreground underline decoration-white/30 underline-offset-4 hover:text-foreground">[{index + 1}]</a></p>) : <p>{turn.answer.answer}</p>}</div></div>}{turn.answer.citations.length > 0 && <CitationList citations={turn.answer.citations} />}{turn.answer.relatedEntries.length > 0 && <RelatedIndex entries={turn.answer.relatedEntries} onChoose={setCommand} />}</article>}
           </div>)}

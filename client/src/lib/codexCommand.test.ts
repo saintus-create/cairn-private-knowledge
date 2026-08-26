@@ -15,4 +15,9 @@ describe("Codex command interpretation", () => {
     expect(commandIntent("Refresh the collection")).toBe("collection");
     expect(commandIntent("What evidence supports this? ")).toBe("question");
   });
+
+  it("opens the project path from plain language", () => {
+    expect(commandIntent("Start a new project")).toBe("project");
+    expect(commandIntent("Switch projects")).toBe("project");
+  });
 });

@@ -99,6 +99,14 @@
 - [ ] Define a welcoming first-use utility that gives Cairn value before the user understands collections or evidence ingestion.
 - [ ] Add a low-clutter discovery/search transition that helps users move from a broad question or topic into a grounded Cairn source or answer.
 - [ ] Preserve Cairn’s private, evidence-first boundary while making universal exploration and next steps understandable on the initial screen.
+- [x] Add an explicit quiet landing-state orientation that presents only three valid next moves: ask within evidence, start a project, or add a document/website.
+- [x] Build a broad-topic transition that turns a loose question into one grounded next action rather than a generic unsupported-answer note.
+- [ ] Add automated coverage for plain-language project requests, empty-project questions, and project-scoped next-step guidance.
+- [ ] Build an actionable topic-to-source proposal for broad first-use questions that never presents unsaved web information as Cairn evidence.
+- [x] Infer a topic-appropriate evidence-start path—website import or private document—and prefill that path without treating any unsaved content as evidence.
+- [ ] Add interaction-level coverage for broad questions in empty projects, research-starter actions, and project-prefill behavior.
+- [ ] Offer a concrete, topic-derived source route or safe source-search path without representing unsaved external content as Cairn evidence.
+- [ ] Add component-level coverage for empty Unfiled questions opening the project path and named empty projects opening the source-add path.
 - [ ] Validate the new first-use transition on desktop and a physical mobile browser.
 - [x] Define a private project model that separates unrelated research contexts while allowing multiple websites and documents inside each project.
 - [x] Make collections, source imports, retrieval, and citations project-scoped so one project cannot leak evidence into another.
