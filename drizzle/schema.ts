@@ -96,6 +96,7 @@ export const collectionPages = mysqlTable("collection_pages", {
   collectionId: int("collectionId").notNull(),
   importBatchId: int("importBatchId"),
   canonicalUrl: varchar("canonicalUrl", { length: 1024 }).notNull(),
+  officialRecordKey: varchar("officialRecordKey", { length: 255 }),
   pageTitle: text("pageTitle").notNull(),
   headings: json("headings").notNull(),
   cleanText: longtext("cleanText"),
@@ -107,6 +108,7 @@ export const collectionPages = mysqlTable("collection_pages", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   uniqueIndex("collection_page_url_unique").on(table.collectionId, table.canonicalUrl),
+  uniqueIndex("collection_page_official_record_unique").on(table.collectionId, table.officialRecordKey),
   index("collection_pages_batch_idx").on(table.importBatchId),
 ]);
 
@@ -126,6 +128,7 @@ export const pageSnapshots = mysqlTable("page_snapshots", {
   id: int("id").autoincrement().primaryKey(),
   pageId: int("pageId").notNull(),
   importBatchId: int("importBatchId"),
+  sourceArchiveId: int("sourceArchiveId"),
   version: int("version").notNull(),
   pageTitle: text("pageTitle").notNull(),
   headings: json("headings").notNull(),
@@ -137,6 +140,7 @@ export const pageSnapshots = mysqlTable("page_snapshots", {
   uniqueIndex("page_snapshot_version_unique").on(table.pageId, table.version),
   index("page_snapshots_page_idx").on(table.pageId),
   index("page_snapshots_batch_idx").on(table.importBatchId),
+  index("page_snapshots_archive_idx").on(table.sourceArchiveId),
 ]);
 
 export const uploadedDocuments = mysqlTable("uploaded_documents", {

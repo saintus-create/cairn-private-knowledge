@@ -139,7 +139,22 @@ export async function importOfficialFamilyCodeCorpus(input: {
     failedCount: 0,
   });
   const batchId = Number(batchResult[0].insertId);
+  let archiveId: number | undefined;
   try {
+    const archiveResult = await db.insert(sourceArchives).values({
+      collectionId: collection.id,
+      sourceUrl: archive.sourceUrl,
+      fileName: archive.fileName,
+      archiveSha256: archive.archiveSha256,
+      observedEtag: archive.observedEtag,
+      observedLastModified: new Date(archive.observedLastModified),
+      acquiredAt: new Date(archive.acquiredAt),
+      recordCount: input.records.length,
+      extractStorageKey: storedExtract.key,
+      extractStorageUrl: storedExtract.url,
+      extractSha256: extractHash,
+    });
+    archiveId = Number(archiveResult[0].insertId);
     const pageInputs = input.records.map((record) => {
       const canonicalUrl = `${archive.sourceUrl}#${encodeURIComponent(record.recordKey)}`;
       const title = `California Family Code § ${record.sectionNumber}`;
@@ -153,6 +168,7 @@ export async function importOfficialFamilyCodeCorpus(input: {
         collectionId: collection.id,
         importBatchId: batchId,
         canonicalUrl: page.canonicalUrl,
+        officialRecordKey: page.record.recordKey,
         pageTitle: page.title,
         headings: page.headings,
         cleanText: page.text,
@@ -169,6 +185,7 @@ export async function importOfficialFamilyCodeCorpus(input: {
       const snapshots = batch.map((page) => ({
         pageId: pageIdByUrl.get(page.canonicalUrl)!,
         importBatchId: batchId,
+        sourceArchiveId: archiveId,
         version: 1,
         pageTitle: page.title,
         headings: page.headings,
@@ -180,27 +197,15 @@ export async function importOfficialFamilyCodeCorpus(input: {
       const sectionPassages = batch.flatMap((page) => chunkSnapshot({ canonicalUrl: page.canonicalUrl, title: page.title, headings: page.headings, text: page.text, contentHash: page.contentHash, fetchedAt: now }).map((draft) => ({ ...draft, collectionId: collection.id, pageId: pageIdByUrl.get(page.canonicalUrl)! })));
       for (const passageBatch of batchesOf(sectionPassages, 100)) if (passageBatch.length) await db.insert(passages).values(passageBatch);
     }
-    const archiveResult = await db.insert(sourceArchives).values({
-      collectionId: collection.id,
-      sourceUrl: archive.sourceUrl,
-      fileName: archive.fileName,
-      archiveSha256: archive.archiveSha256,
-      observedEtag: archive.observedEtag,
-      observedLastModified: new Date(archive.observedLastModified),
-      acquiredAt: new Date(archive.acquiredAt),
-      recordCount: input.records.length,
-      extractStorageKey: storedExtract.key,
-      extractStorageUrl: storedExtract.url,
-      extractSha256: extractHash,
-    });
     await db.update(importBatches).set({ status: "complete", processedCount: input.records.length, completedAt: now }).where(eq(importBatches.id, batchId));
     await db.update(collections).set({
       importStatus: "ready",
       rootUrl: archive.sourceUrl,
       scope: `Official California Family Code text extracted from ${archive.fileName}, acquired ${archive.acquiredAt}. Cairn retains active official section records, archive identity, source hashes, and immutable snapshots; commentary is excluded.`,
     }).where(eq(collections.id, collection.id));
-    return { archiveId: Number(archiveResult[0].insertId), recordCount: input.records.length, alreadyImported: false };
+    return { archiveId, recordCount: input.records.length, alreadyImported: false };
   } catch (error) {
+    if (archiveId) await db.delete(sourceArchives).where(eq(sourceArchives.id, archiveId));
     await db.update(importBatches).set({ status: "failed", failedCount: input.records.length, completedAt: new Date() }).where(eq(importBatches.id, batchId));
     await db.update(collections).set({ importStatus: "attention" }).where(eq(collections.id, collection.id));
     throw error;
