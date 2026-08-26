@@ -13,10 +13,7 @@ export function getComposerSuggestions({ query, expanded, collection, pages }: {
   if (!expanded) return [];
   const text = query.trim();
   if (text.length < 2) return [];
-  if (firstPublicUrl(text)) return [
-    { label: "Create an expert collection", command: text, detail: "Codex will inspect the website and prepare a small source proposal." },
-    { label: "Preview source boundary", command: text, detail: "You will approve the selected pages before import." },
-  ];
+  if (firstPublicUrl(text)) return [];
   const terms = text.toLowerCase().split(/\s+/).filter((term) => term.length > 2);
   const matchedPages = pages
     .filter((page) => terms.some((term) => `${page.pageTitle} ${page.canonicalUrl}`.toLowerCase().includes(term)))
@@ -25,5 +22,5 @@ export function getComposerSuggestions({ query, expanded, collection, pages }: {
   return collection ? [
     { label: `Ask ${collection.name}`, command: text, detail: "Codex will answer only from this collection’s saved passages." },
     { label: "Review source coverage", command: "Show my sources", detail: "See what the current collection can support." },
-  ] : [{ label: "Add this as a source", command: text, detail: "Paste a public website URL to start a collection." }];
+  ] : [];
 }

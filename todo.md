@@ -57,3 +57,4 @@
 - [x] Create and verify an independent private GitHub backup of the current Cairn project.
 - [x] Suppress empty-focus suggestion cards and keep the mobile composer visually stable when the keyboard opens.
 - [ ] Confirm on a physical phone that typing begins without unsolicited cards, reflow, or viewport clutter.
+- [x] Replace website-explainer copy with a URL-aware command placeholder and URL-only source guidance.
