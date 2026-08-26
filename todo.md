@@ -73,3 +73,5 @@
 - [ ] Validate the complete first-use source-to-answer journey on desktop and mobile.
 - [x] Add a restrained blue-black viewport gradient that creates depth around the Cairn wordmark and composer.
 - [ ] Verify the gradient preserves dark-mode contrast and composer legibility at desktop and mobile breakpoints.
+- [x] Test a stronger bottom-weighted blue-black vignette behind the composer.
+- [ ] Verify the darker bottom gradient retains comfortable contrast at desktop and mobile breakpoints.
