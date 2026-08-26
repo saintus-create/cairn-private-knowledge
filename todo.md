@@ -68,3 +68,6 @@
 - [ ] Verify contrast and readability for dark mobile composer, inline source modes, and evidence views.
 - [x] Remove the internal composer separator and establish a unified charcoal dialogue surface.
 - [ ] Verify the refined charcoal composer remains balanced and readable on mobile and desktop.
+- [x] Audit and simplify the first-use composer actions so the intended source and question paths are self-explanatory.
+- [x] Improve post-submit conversation hierarchy so answers, evidence, citations, and next actions are delivered in a readable order.
+- [ ] Validate the complete first-use source-to-answer journey on desktop and mobile.
