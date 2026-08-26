@@ -41,3 +41,4 @@
 - [x] Add compact as-you-type source and question suggestions immediately above the active composer.
 - [ ] Verify the edge-anchored composer and suggestion interaction on a physical mobile browser.
 - [x] Add deterministic unit coverage for the compact source-aware suggestion ranking.
+- [x] Remove explanatory landing copy and website-oriented helper language from the private Codex command surface.
