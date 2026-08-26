@@ -102,3 +102,23 @@ export const pageSnapshots = mysqlTable("page_snapshots", {
   index("page_snapshots_page_idx").on(table.pageId),
   index("page_snapshots_batch_idx").on(table.importBatchId),
 ]);
+
+export const uploadedDocuments = mysqlTable("uploaded_documents", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  collectionId: int("collectionId").notNull(),
+  pageId: int("pageId").notNull(),
+  fileName: varchar("fileName", { length: 255 }).notNull(),
+  mimeType: varchar("mimeType", { length: 120 }).notNull(),
+  byteSize: int("byteSize").notNull(),
+  storageKey: varchar("storageKey", { length: 1024 }).notNull(),
+  storageUrl: varchar("storageUrl", { length: 1024 }).notNull(),
+  status: mysqlEnum("status", ["processing", "ready", "failed"]).notNull().default("processing"),
+  importError: text("importError"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uploaded_documents_storage_key_unique").on(table.storageKey),
+  index("uploaded_documents_user_idx").on(table.userId),
+  index("uploaded_documents_collection_idx").on(table.collectionId),
+]);

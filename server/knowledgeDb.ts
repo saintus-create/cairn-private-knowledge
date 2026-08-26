@@ -1,10 +1,116 @@
 import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import { getDb } from "./db";
-import { collectionPages, collections, importBatches, pageSnapshots, passages } from "../drizzle/schema";
+import { collectionPages, collections, importBatches, pageSnapshots, passages, uploadedDocuments } from "../drizzle/schema";
 import { approvedCollectionUrls, chunkSnapshot, scrapeSnapshot } from "./websiteSafety";
 import { buildEvidenceResponse, queryTerms } from "./evidence";
 import { invokeLLM } from "./_core/llm";
 import { applyOptionalSynthesis } from "./optionalSynthesis";
+import { storagePut } from "./storage";
+
+const require = createRequire(import.meta.url);
+const parsePdf = require("pdf-parse/lib/pdf-parse.js") as (buffer: Buffer) => Promise<{ text: string }>;
+
+const MAX_UPLOADED_DOCUMENT_BYTES = 20 * 1024 * 1024;
+const SUPPORTED_DOCUMENT_TYPES = new Set(["application/pdf", "text/plain", "text/markdown"]);
+
+function safeDocumentName(value: string) {
+  const cleaned = value.replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim();
+  return (cleaned || "Untitled document").slice(0, 255);
+}
+
+function documentMimeType(fileName: string, mimeType: string) {
+  if (SUPPORTED_DOCUMENT_TYPES.has(mimeType)) return mimeType;
+  const extension = fileName.split(".").pop()?.toLowerCase();
+  if (extension === "pdf") return "application/pdf";
+  if (extension === "md" || extension === "markdown") return "text/markdown";
+  if (extension === "txt") return "text/plain";
+  throw new Error("Upload a PDF, plain-text, or Markdown document.");
+}
+
+export async function extractUploadedDocumentText(fileName: string, mimeType: string, buffer: Buffer) {
+  const normalizedType = documentMimeType(fileName, mimeType);
+  const text = normalizedType === "application/pdf" ? (await parsePdf(buffer)).text : buffer.toString("utf8");
+  const cleanText = text.replace(/\u0000/g, "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (cleanText.length < 80) throw new Error("This file did not contain enough readable text to become a source.");
+  return { mimeType: normalizedType, text: cleanText };
+}
+
+export async function importUploadedDocument(input: { userId: number; fileName: string; mimeType: string; base64: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("The private data store is not available yet.");
+  const fileName = safeDocumentName(input.fileName);
+  const buffer = Buffer.from(input.base64, "base64");
+  if (!buffer.length || buffer.length > MAX_UPLOADED_DOCUMENT_BYTES) throw new Error("Files must be between 1 byte and 20 MB.");
+  const extracted = await extractUploadedDocumentText(fileName, input.mimeType, buffer);
+  const collectionName = fileName.replace(/\.[^.]+$/, "").slice(0, 80) || "Untitled document";
+  const storage = await storagePut(`users/${input.userId}/documents/${Date.now()}-${fileName}`, buffer, extracted.mimeType);
+  const contentHash = createHash("sha256").update(extracted.text).digest("hex");
+  const headings = [{ level: 1, text: collectionName, anchor: `id:${collectionName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "document"}` }];
+  const now = new Date();
+  const collectionResult = await db.insert(collections).values({
+    userId: input.userId,
+    name: collectionName,
+    rootUrl: storage.url,
+    scope: `Private uploaded source: ${fileName}.`,
+    audience: "A careful general reader",
+    tone: "Direct, clear-eyed, and evidence-led",
+    answerMode: "extractive",
+    includePaths: "/",
+    excludePaths: "",
+    pageLimit: 1,
+    importStatus: "ready",
+  });
+  const collectionId = Number(collectionResult[0].insertId);
+  const batchResult = await db.insert(importBatches).values({
+    collectionId,
+    status: "complete",
+    requestedCount: 1,
+    processedCount: 1,
+    unchangedCount: 0,
+    failedCount: 0,
+    completedAt: now,
+  });
+  const batchId = Number(batchResult[0].insertId);
+  const pageResult = await db.insert(collectionPages).values({
+    collectionId,
+    importBatchId: batchId,
+    canonicalUrl: storage.url,
+    pageTitle: collectionName,
+    headings,
+    cleanText: extracted.text,
+    contentHash,
+    sourceStatus: "ready",
+    fetchedAt: now,
+    importedAt: now,
+  });
+  const pageId = Number(pageResult[0].insertId);
+  await db.insert(pageSnapshots).values({
+    pageId,
+    importBatchId: batchId,
+    version: 1,
+    pageTitle: collectionName,
+    headings,
+    cleanText: extracted.text,
+    contentHash,
+    fetchedAt: now,
+  });
+  const drafts = chunkSnapshot({ canonicalUrl: storage.url, title: collectionName, headings, text: extracted.text, contentHash, fetchedAt: now });
+  if (drafts.length) await db.insert(passages).values(drafts.map((draft) => ({ ...draft, collectionId, pageId })));
+  const documentResult = await db.insert(uploadedDocuments).values({
+    userId: input.userId,
+    collectionId,
+    pageId,
+    fileName,
+    mimeType: extracted.mimeType,
+    byteSize: buffer.length,
+    storageKey: storage.key,
+    storageUrl: storage.url,
+    status: "ready",
+  });
+  return { documentId: Number(documentResult[0].insertId), collectionId, pageId, fileName, passageCount: drafts.length };
+}
 
 export async function listCollections(userId: number) {
   const db = await getDb();
@@ -299,7 +405,7 @@ export async function answerFromCollection(userId: number, collectionId: number,
     const response = await invokeLLM({
       model: "gpt-5-nano",
       messages: [
-        { role: "system", content: "You write short, source-bounded reference entries. Use only the supplied excerpts. Never add facts, resolve gaps with assumptions, or mention material not present in the excerpts. Cite relevant statements using [1], [2], and so on. If the excerpts do not support an answer, say exactly: Insufficient evidence in this collection." },
+        { role: "system", content: "You write concise, source-bounded reference entries with direct rhetoric. State conclusions plainly when the supplied excerpts support them; do not soften clear evidence with filler. Never add facts, resolve gaps with assumptions, erase genuine disagreement, or imply certainty beyond the excerpts. Cite relevant statements using [1], [2], and so on. If the excerpts do not support an answer, say exactly: Insufficient evidence in this collection." },
         { role: "user", content: `Question: ${question}\n\nApproved source excerpts:\n${sourcePacket}\n\nWrite no more than 130 words.` },
       ],
     });

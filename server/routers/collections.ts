@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { answerFromCollection, createCollection, getCollection, getLatestImportBatch, listCollections, listPageSnapshots, listPages, refreshCollection, runNextImportBatch, startImport, updateProfile } from "../knowledgeDb";
+import { answerFromCollection, createCollection, getCollection, getLatestImportBatch, importUploadedDocument, listCollections, listPageSnapshots, listPages, refreshCollection, runNextImportBatch, startImport, updateProfile } from "../knowledgeDb";
 import { assertPublicWebsiteUrl, previewWebsiteScope } from "../websiteSafety";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -47,6 +47,17 @@ export const collectionsRouter = router({
       return { collectionId: await createCollection({ ...input, rootUrl: url.toString(), userId: ctx.user.id }) };
     } catch (cause) {
       throw error(cause instanceof Error ? cause.message : "The collection could not be created.");
+    }
+  }),
+  uploadDocument: protectedProcedure.input(z.object({
+    fileName: z.string().trim().min(1).max(255),
+    mimeType: z.string().trim().max(120),
+    base64: z.string().min(4).max(28_000_000),
+  })).mutation(async ({ ctx, input }) => {
+    try {
+      return await importUploadedDocument({ ...input, userId: ctx.user.id });
+    } catch (cause) {
+      throw error(cause instanceof Error ? cause.message : "The document could not be imported.");
     }
   }),
   updateProfile: protectedProcedure

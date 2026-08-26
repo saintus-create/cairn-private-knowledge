@@ -47,3 +47,10 @@
 - [x] Establish an eggshell white, light-gray, smoked-gray, and charcoal color system across the application.
 - [x] Expand automated coverage for core command and source-workflow behavior.
 - [ ] Re-verify the hardened core flows, responsive UI, and physical mobile keyboard behavior.
+- [ ] Diagnose and resolve persistent preview access after development-server restart.
+- [x] Add a secure private document-upload entry point with source-boundary-aware ingestion.
+- [x] Preserve direct, rhetorically strong answers while labeling uncertainty and retaining source evidence as the factual boundary.
+- [x] Replace the Codex name with a distinct private brand and document the Freight Text Pro licensing requirement or fallback choice.
+- [x] Add compact icon-pill navigation for post-entry source and collection actions.
+- [ ] Validate upload, grounded-answer behavior, responsive navigation, and physical mobile keyboard behavior.
+- [x] Add a restrained animated upload state with clear preparation, reading, and evidence-indexing progress.

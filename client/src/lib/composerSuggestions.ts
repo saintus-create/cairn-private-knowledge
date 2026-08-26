@@ -24,7 +24,7 @@ export function getComposerSuggestions({ query, expanded, collection, pages }: {
   const matchedPages = pages
     .filter((page) => terms.some((term) => `${page.pageTitle} ${page.canonicalUrl}`.toLowerCase().includes(term)))
     .slice(0, 3);
-  if (matchedPages.length) return matchedPages.map((page) => ({ label: page.pageTitle, command: `${text} — focus on ${page.pageTitle}`, detail: new URL(page.canonicalUrl).pathname || "/" }));
+  if (matchedPages.length) return matchedPages.map((page) => ({ label: page.pageTitle, command: `${text} — focus on ${page.pageTitle}`, detail: new URL(page.canonicalUrl, "https://cairn.local").pathname || "/" }));
   return collection ? [
     { label: `Ask ${collection.name}`, command: text, detail: "Codex will answer only from this collection’s saved passages." },
     { label: "Review source coverage", command: "Show my sources", detail: "See what the current collection can support." },
