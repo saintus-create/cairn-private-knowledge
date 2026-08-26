@@ -12,14 +12,11 @@ type SuggestionCollection = { name: string } | undefined;
 export function getComposerSuggestions({ query, expanded, collection, pages }: { query: string; expanded: boolean; collection: SuggestionCollection; pages: SuggestionPage[] }): ComposerSuggestion[] {
   if (!expanded) return [];
   const text = query.trim();
+  if (text.length < 2) return [];
   if (firstPublicUrl(text)) return [
     { label: "Create an expert collection", command: text, detail: "Codex will inspect the website and prepare a small source proposal." },
     { label: "Preview source boundary", command: text, detail: "You will approve the selected pages before import." },
   ];
-  if (!text) return collection ? [
-    { label: `Ask ${collection.name}`, command: `What are the main ideas in ${collection.name}?`, detail: "Searches only the saved source passages." },
-    { label: "Review sources", command: "Show my sources", detail: "Open the current collection when you need it." },
-  ] : [{ label: "Add a website", command: "", detail: "Paste any public URL and Codex will prepare the import." }];
   const terms = text.toLowerCase().split(/\s+/).filter((term) => term.length > 2);
   const matchedPages = pages
     .filter((page) => terms.some((term) => `${page.pageTitle} ${page.canonicalUrl}`.toLowerCase().includes(term)))

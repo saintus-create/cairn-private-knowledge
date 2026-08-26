@@ -12,6 +12,11 @@ describe("getComposerSuggestions", () => {
     expect(getComposerSuggestions({ query: "grid", expanded: false, collection, pages })).toEqual([]);
   });
 
+  it("does not introduce suggestion cards merely because the input received focus", () => {
+    expect(getComposerSuggestions({ query: "", expanded: true, collection, pages })).toEqual([]);
+    expect(getComposerSuggestions({ query: "a", expanded: true, collection, pages })).toEqual([]);
+  });
+
   it("prioritizes matching saved source pages while typing", () => {
     const suggestions = getComposerSuggestions({ query: "How does grid work?", expanded: true, collection, pages });
     expect(suggestions[0]).toMatchObject({ label: "Grid layout", detail: "/layout/grid" });

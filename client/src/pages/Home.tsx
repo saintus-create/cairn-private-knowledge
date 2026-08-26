@@ -70,7 +70,6 @@ export default function Home() {
   const [uploadStage, setUploadStage] = useState<"Preparing file" | "Reading pages" | "Indexing evidence" | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>({ name: "", scope: "", audience: "", tone: "", answerMode: "extractive", aiSynthesisEnabled: false });
-  const [composerFocused, setComposerFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -88,7 +87,7 @@ export default function Home() {
   const utils = trpc.useUtils();
   const busy = preview.isPending || create.isPending || startImport.isPending || continueImport.isPending || refresh.isPending || updateProfile.isPending || answer.isPending || uploadDocument.isPending;
   const awake = turns.length > 0;
-  const composerExpanded = !awake && (composerFocused || command.length > 0);
+  const composerExpanded = !awake && command.trim().length > 0;
   const composerSuggestions = useMemo(() => getComposerSuggestions({ query: command, expanded: composerExpanded, collection: detail.data?.collection, pages: detail.data?.pages ?? [] }), [command, composerExpanded, detail.data?.collection, detail.data?.pages]);
 
   useEffect(() => {
@@ -108,10 +107,6 @@ export default function Home() {
   }, [uploadStage]);
 
   function append(turn: ChatTurn) { setTurns((current) => [...current, turn]); }
-
-  function focusComposer() {
-    setComposerFocused(true);
-  }
 
   function fileAsBase64(file: File) {
     return new Promise<string>((resolve, reject) => {
@@ -242,7 +237,7 @@ export default function Home() {
     }
   }
 
-  return <div className="min-h-dvh bg-background text-foreground">
+  return <div className={`${awake ? "min-h-dvh" : "h-[100svh] overflow-hidden"} bg-background text-foreground`}>
     {awake && <header className="flex h-14 items-center justify-between border-b border-border px-5 sm:px-7">
       <button className="font-serif text-xl tracking-tight" onClick={() => { setTurns([]); setCommand(""); inputRef.current?.focus(); }}>Cairn</button>
       <nav className="flex items-center gap-1.5" aria-label="Cairn actions">
@@ -251,7 +246,7 @@ export default function Home() {
       </nav>
     </header>}
 
-    {!awake ? <><main className="mx-auto flex min-h-[100svh] w-full max-w-2xl flex-col items-center justify-center px-6 text-center"><h1 className="enter-up font-serif text-5xl tracking-tight sm:text-6xl">Cairn</h1></main><div className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-6 sm:px-7 sm:pb-0"><div className="mx-auto w-full max-w-2xl"><div className={`mb-2 space-y-1.5 transition-[max-height,opacity,transform] duration-200 ease-out ${composerExpanded ? "max-h-56 translate-y-0 opacity-100" : "max-h-0 translate-y-2 overflow-hidden opacity-0"}`}>{composerSuggestions.map((suggestion) => <button key={`${suggestion.label}-${suggestion.detail}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCommand(suggestion.command); inputRef.current?.focus(); }} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-background/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{suggestion.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></button>)}</div><CommandBar inputRef={inputRef} expanded={composerExpanded} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} onFocus={focusComposer} onBlur={() => { if (!command.trim()) setComposerFocused(false); }} onUpload={() => setUploadOpen(true)} /></div></div></> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
+    {!awake ? <><main className="mx-auto flex h-full w-full max-w-2xl flex-col items-center justify-center px-6 text-center"><h1 className="enter-up font-serif text-5xl tracking-tight sm:text-6xl">Cairn</h1></main><div className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-6 sm:px-7 sm:pb-0"><div className="mx-auto w-full max-w-2xl"><div className={`mb-2 space-y-1.5 transition-[max-height,opacity,transform] duration-200 ease-out ${composerSuggestions.length ? "max-h-56 translate-y-0 opacity-100" : "max-h-0 translate-y-2 overflow-hidden opacity-0"}`}>{composerSuggestions.map((suggestion) => <button key={`${suggestion.label}-${suggestion.detail}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCommand(suggestion.command); inputRef.current?.focus(); }} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-background/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{suggestion.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></button>)}</div><CommandBar inputRef={inputRef} expanded={composerExpanded} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} onUpload={() => setUploadOpen(true)} /></div></div></> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="mx-auto w-full max-w-2xl space-y-7 py-8 sm:py-12">
           {turns.map((turn) => <div key={turn.id} className="animate-in fade-in slide-in-from-bottom-1 duration-200">
