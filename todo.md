@@ -42,3 +42,4 @@
 - [ ] Verify the edge-anchored composer and suggestion interaction on a physical mobile browser.
 - [x] Add deterministic unit coverage for the compact source-aware suggestion ranking.
 - [x] Remove explanatory landing copy and website-oriented helper language from the private Codex command surface.
+- [x] Separate the centered Codex title from a bottom-anchored command bar in the initial landing state.
