@@ -71,3 +71,5 @@
 - [x] Audit and simplify the first-use composer actions so the intended source and question paths are self-explanatory.
 - [x] Improve post-submit conversation hierarchy so answers, evidence, citations, and next actions are delivered in a readable order.
 - [ ] Validate the complete first-use source-to-answer journey on desktop and mobile.
+- [x] Add a restrained blue-black viewport gradient that creates depth around the Cairn wordmark and composer.
+- [ ] Verify the gradient preserves dark-mode contrast and composer legibility at desktop and mobile breakpoints.

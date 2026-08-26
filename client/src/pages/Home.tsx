@@ -250,7 +250,7 @@ export default function Home() {
     }
   }
 
-  return <div className={`${awake ? "min-h-dvh" : "h-[100svh] overflow-hidden"} bg-background text-foreground`}>
+  return <div className={`cairn-viewport ${awake ? "min-h-dvh" : "h-[100svh] overflow-hidden"} text-foreground`}>
     {awake && <header className="flex h-14 items-center justify-between border-b border-border px-5 sm:px-7">
       <button className="font-serif text-xl tracking-tight" onClick={() => { setTurns([]); setCommand(""); inputRef.current?.focus(); }}>Cairn</button>
       <nav className="flex items-center gap-1.5" aria-label="Cairn actions">
