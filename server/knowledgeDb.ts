@@ -1,9 +1,10 @@
 import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { getDb } from "./db";
 import { collectionPages, collections, importBatches, pageSnapshots, passages } from "../drizzle/schema";
-import { chunkSnapshot, scrapeSnapshot } from "./websiteSafety";
+import { approvedCollectionUrls, chunkSnapshot, scrapeSnapshot } from "./websiteSafety";
 import { buildEvidenceResponse, queryTerms } from "./evidence";
 import { invokeLLM } from "./_core/llm";
+import { applyOptionalSynthesis } from "./optionalSynthesis";
 
 export async function listCollections(userId: number) {
   const db = await getDb();
@@ -131,7 +132,13 @@ export async function startImport(userId: number, collectionId: number, urls: st
   if (!db) throw new Error("The private data store is not available yet.");
   const collection = await getCollection(userId, collectionId);
   if (!collection) throw new Error("Collection not found.");
-  const selectedUrls = Array.from(new Set(urls)).slice(0, collection.pageLimit);
+  const selectedUrls = approvedCollectionUrls({
+    urls,
+    rootUrl: collection.rootUrl,
+    includePaths: collection.includePaths,
+    excludePaths: collection.excludePaths,
+    pageLimit: collection.pageLimit,
+  });
   if (!selectedUrls.length) throw new Error("Select at least one approved page before importing.");
   const result = await db.insert(importBatches).values({
     collectionId,
@@ -288,15 +295,15 @@ export async function answerFromCollection(userId: number, collectionId: number,
   const evidence = buildEvidenceResponse({ collection: collection.name, answerMode: collection.answerMode, question, rows });
   if (evidence.status !== "evidence" || !useOptionalSynthesis || !collection.aiSynthesisEnabled) return evidence;
   const sourcePacket = evidence.citations.map((citation, index) => `[${index + 1}] ${citation.title} — ${citation.headingPath}\n${citation.excerpt}`).join("\n\n");
-  const response = await invokeLLM({
-    model: "gpt-5-nano",
-    messages: [
-      { role: "system", content: "You write short, source-bounded reference entries. Use only the supplied excerpts. Never add facts, resolve gaps with assumptions, or mention material not present in the excerpts. Cite relevant statements using [1], [2], and so on. If the excerpts do not support an answer, say exactly: Insufficient evidence in this collection." },
-      { role: "user", content: `Question: ${question}\n\nApproved source excerpts:\n${sourcePacket}\n\nWrite no more than 130 words.` },
-    ],
+  return applyOptionalSynthesis(evidence, true, async () => {
+    const response = await invokeLLM({
+      model: "gpt-5-nano",
+      messages: [
+        { role: "system", content: "You write short, source-bounded reference entries. Use only the supplied excerpts. Never add facts, resolve gaps with assumptions, or mention material not present in the excerpts. Cite relevant statements using [1], [2], and so on. If the excerpts do not support an answer, say exactly: Insufficient evidence in this collection." },
+        { role: "user", content: `Question: ${question}\n\nApproved source excerpts:\n${sourcePacket}\n\nWrite no more than 130 words.` },
+      ],
+    });
+    const content = response.choices[0]?.message.content;
+    return typeof content === "string" ? content : undefined;
   });
-  const content = response.choices[0]?.message.content;
-  const synthesis = typeof content === "string" ? content.trim() : "";
-  if (!synthesis) return evidence;
-  return { ...evidence, answer: synthesis, synthesized: true };
 }

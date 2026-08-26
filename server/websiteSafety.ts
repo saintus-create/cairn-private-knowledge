@@ -71,6 +71,18 @@ export function matchesScope(url: string, includeRules: string, excludeRules: st
   return allowedByInclude && !blockedByExclude;
 }
 
+export function approvedCollectionUrls(input: { urls: string[]; rootUrl: string; includePaths: string; excludePaths: string; pageLimit: number }) {
+  const root = new URL(input.rootUrl);
+  const selected = new Set<string>();
+  for (const value of input.urls) {
+    const url = new URL(canonicalizeUrl(value));
+    if (url.hostname !== root.hostname) throw new Error("Imports must remain on the approved source host.");
+    if (!matchesScope(url.toString(), input.includePaths, input.excludePaths)) throw new Error("An import URL falls outside this collection’s approved source boundary.");
+    selected.add(url.toString());
+  }
+  return Array.from(selected).slice(0, input.pageLimit);
+}
+
 async function fetchWithPolicy(value: string, accept = "text/html,application/xhtml+xml") {
   let current = await assertPublicWebsiteUrl(value);
   for (let redirect = 0; redirect < 4; redirect += 1) {

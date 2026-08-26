@@ -43,3 +43,7 @@
 - [x] Add deterministic unit coverage for the compact source-aware suggestion ranking.
 - [x] Remove explanatory landing copy and website-oriented helper language from the private Codex command surface.
 - [x] Separate the centered Codex title from a bottom-anchored command bar in the initial landing state.
+- [x] Audit core command, source-import, retrieval, and error paths for robustness gaps.
+- [x] Establish an eggshell white, light-gray, smoked-gray, and charcoal color system across the application.
+- [x] Expand automated coverage for core command and source-workflow behavior.
+- [ ] Re-verify the hardened core flows, responsive UI, and physical mobile keyboard behavior.
