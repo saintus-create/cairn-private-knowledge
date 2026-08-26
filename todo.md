@@ -62,3 +62,5 @@
 - [ ] Verify the two-tier composer remains calm and usable with the mobile keyboard open.
 - [x] Add inline expandable document-upload and web-source modes to the second composer row.
 - [ ] Verify mode expansion and collapse do not obscure the prompt or reintroduce mobile clutter.
+- [x] Replace the warm neutral visual system with cool monochrome surfaces and a restrained functional accent.
+- [ ] Verify the cool palette maintains readable contrast in mobile composer and active source modes.
