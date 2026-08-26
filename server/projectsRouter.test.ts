@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
+  bootstrapCaliforniaFamilyCodeExpert: vi.fn(),
   listProjects: vi.fn(),
   answerFromProject: vi.fn(),
 }));
 
 vi.mock("./knowledgeDb", () => ({
   createProject: mocks.createProject,
+  bootstrapCaliforniaFamilyCodeExpert: mocks.bootstrapCaliforniaFamilyCodeExpert,
   listProjects: mocks.listProjects,
   answerFromProject: mocks.answerFromProject,
 }));
@@ -27,6 +29,14 @@ describe("projects router", () => {
 
     await expect(caller.create({ name: "California law", description: "Official sources" })).resolves.toEqual({ projectId: 7 });
     expect(mocks.createProject).toHaveBeenCalledWith({ userId: 42, name: "California law", description: "Official sources" });
+  });
+
+  it("bootstraps the official Family Code expert for the authenticated owner", async () => {
+    mocks.bootstrapCaliforniaFamilyCodeExpert.mockResolvedValue({ projectId: 11, collectionId: 22, sourceCount: 241, alreadyExists: false });
+    const caller = projectsRouter.createCaller(ctx);
+
+    await expect(caller.bootstrapCaliforniaFamilyCode()).resolves.toEqual({ projectId: 11, collectionId: 22, sourceCount: 241, alreadyExists: false });
+    expect(mocks.bootstrapCaliforniaFamilyCodeExpert).toHaveBeenCalledWith(42);
   });
 
   it("retrieves evidence only through the selected project boundary", async () => {

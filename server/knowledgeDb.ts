@@ -14,6 +14,50 @@ const parsePdf = require("pdf-parse/lib/pdf-parse.js") as (buffer: Buffer) => Pr
 
 const MAX_UPLOADED_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const SUPPORTED_DOCUMENT_TYPES = new Set(["application/pdf", "text/plain", "text/markdown"]);
+const FAMILY_CODE_SOURCE_MAP_URL = "https://raw.githubusercontent.com/saintus-create/family-905324/main/tableofcontents.json";
+const FAMILY_CODE_SOURCE_MAP_PAGE = "https://github.com/saintus-create/family-905324/blob/main/tableofcontents.json";
+const FAMILY_CODE_ROOT_URL = "https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?lawCode=FAM";
+const MAX_PRIMARY_LAW_MANIFEST_URLS = 250;
+
+type FamilyCodeSourceMap = {
+  california_family_code_structure?: Array<{
+    parts?: Array<{
+      chapters?: Array<{
+        sections?: Array<{ section_number_citation?: string }>;
+      }>;
+    }>;
+  }>;
+};
+
+export async function familyCodeOfficialUrls() {
+  const response = await fetch(FAMILY_CODE_SOURCE_MAP_URL, { headers: { accept: "application/json", "user-agent": "CairnPrimaryLawBootstrap/1.0" } });
+  if (!response.ok) throw new Error(`Cairn could not read the Family Code source map (HTTP ${response.status}).`);
+  const sourceText = await response.text();
+  if (Buffer.byteLength(sourceText, "utf8") > 6_000_000) throw new Error("The Family Code source map exceeds the bootstrap safety limit.");
+  let sourceMap: FamilyCodeSourceMap;
+  try {
+    sourceMap = JSON.parse(sourceText) as FamilyCodeSourceMap;
+  } catch {
+    throw new Error("The Family Code source map was not valid JSON.");
+  }
+  const officialUrls = new Set<string>();
+  for (const division of sourceMap.california_family_code_structure ?? []) {
+    for (const part of division.parts ?? []) {
+      for (const chapter of part.chapters ?? []) {
+        for (const section of chapter.sections ?? []) {
+          if (!section.section_number_citation) continue;
+          const url = new URL(section.section_number_citation);
+          if (url.hostname !== "leginfo.legislature.ca.gov" || url.pathname !== "/faces/codes_displayText.xhtml" || url.searchParams.get("lawCode") !== "FAM") continue;
+          officialUrls.add(url.toString());
+        }
+      }
+    }
+  }
+  const urls = Array.from(officialUrls).sort();
+  if (!urls.length) throw new Error("The Family Code source map did not contain usable official statutory routes.");
+  if (urls.length > MAX_PRIMARY_LAW_MANIFEST_URLS) throw new Error("The Family Code source map exceeds the current staged-import safety limit.");
+  return urls;
+}
 
 export async function getProject(userId: number, projectId: number) {
   const db = await getDb();
@@ -57,6 +101,41 @@ export async function createProject(input: { userId: number; name: string; descr
   if (!db) throw new Error("The private data store is not available yet.");
   const result = await db.insert(projects).values({ userId: input.userId, name: input.name, description: input.description ?? "" });
   return Number(result[0].insertId);
+}
+
+export async function bootstrapCaliforniaFamilyCodeExpert(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("The private data store is not available yet.");
+  const existing = await db.select().from(projects).where(and(eq(projects.userId, userId), eq(projects.name, "California Family Code expert"))).limit(1);
+  if (existing[0]) {
+    const existingCollection = await db.select({ id: collections.id }).from(collections).where(eq(collections.projectId, existing[0].id)).limit(1);
+    return { projectId: existing[0].id, collectionId: existingCollection[0]?.id ?? null, sourceCount: 0, alreadyExists: true };
+  }
+  const urls = await familyCodeOfficialUrls();
+  const projectResult = await db.insert(projects).values({
+    userId,
+    name: "California Family Code expert",
+    description: "Official Family Code statutory text, with separate companion sources added only by approval.",
+    projectKind: "primary_law",
+  });
+  const projectId = Number(projectResult[0].insertId);
+  const collectionId = await createCollection({
+    userId,
+    projectId,
+    name: "California Family Code — official text",
+    rootUrl: FAMILY_CODE_ROOT_URL,
+    scope: "Official California Family Code bulk source manifest. The public portal is not crawled; Cairn will add statutory text only after an approved official database extraction preserves archive provenance and snapshots.",
+    audience: "A careful researcher",
+    tone: "Direct, exact, and evidence-led",
+    answerMode: "extractive",
+    includePaths: "/faces/codes_displayText.xhtml",
+    excludePaths: "",
+    pageLimit: 50,
+    sourceAuthority: "official_primary",
+    publisher: "California Office of Legislative Counsel",
+    sourceMapUrl: FAMILY_CODE_SOURCE_MAP_PAGE,
+  });
+  return { projectId, collectionId, sourceCount: urls.length, alreadyExists: false };
 }
 
 function safeDocumentName(value: string) {
@@ -264,6 +343,9 @@ export async function createCollection(input: {
   includePaths: string;
   excludePaths: string;
   pageLimit: number;
+  sourceAuthority?: "general" | "official_primary" | "official_procedural" | "user_reference";
+  publisher?: string;
+  sourceMapUrl?: string;
 }) {
   const db = await getDb();
   if (!db) throw new Error("The private data store is not available yet.");

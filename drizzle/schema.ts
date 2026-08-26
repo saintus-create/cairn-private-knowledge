@@ -30,6 +30,7 @@ export const projects = mysqlTable("projects", {
   userId: int("userId").notNull(),
   name: varchar("name", { length: 80 }).notNull(),
   description: varchar("description", { length: 220 }).notNull().default(""),
+  projectKind: mysqlEnum("projectKind", ["general", "primary_law"]).notNull().default("general"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -48,6 +49,9 @@ export const collections = mysqlTable("collections", {
   tone: varchar("tone", { length: 120 }).notNull(),
   answerMode: mysqlEnum("answerMode", ["extractive", "source-backed", "labeled-synthesis"]).notNull().default("extractive"),
   aiSynthesisEnabled: boolean("aiSynthesisEnabled").notNull().default(false),
+  sourceAuthority: mysqlEnum("sourceAuthority", ["general", "official_primary", "official_procedural", "user_reference"]).notNull().default("general"),
+  publisher: varchar("publisher", { length: 180 }).notNull().default(""),
+  sourceMapUrl: varchar("sourceMapUrl", { length: 1024 }),
   includePaths: text("includePaths").notNull(),
   excludePaths: text("excludePaths").notNull(),
   pageLimit: int("pageLimit").notNull().default(20),

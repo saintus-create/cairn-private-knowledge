@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { answerFromProject, createProject, listProjects } from "../knowledgeDb";
+import { answerFromProject, bootstrapCaliforniaFamilyCodeExpert, createProject, listProjects } from "../knowledgeDb";
 import { protectedProcedure, router } from "../_core/trpc";
 
 const projectInput = z.object({
@@ -15,6 +15,13 @@ export const projectsRouter = router({
       return { projectId: await createProject({ ...input, userId: ctx.user.id }) };
     } catch (cause) {
       throw new TRPCError({ code: "BAD_REQUEST", message: cause instanceof Error ? cause.message : "Cairn could not create that project." });
+    }
+  }),
+  bootstrapCaliforniaFamilyCode: protectedProcedure.mutation(async ({ ctx }) => {
+    try {
+      return await bootstrapCaliforniaFamilyCodeExpert(ctx.user.id);
+    } catch (cause) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: cause instanceof Error ? cause.message : "Cairn could not prepare the California Family Code expert." });
     }
   }),
   answer: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), question: z.string().trim().min(4).max(600) })).mutation(async ({ ctx, input }) => {
