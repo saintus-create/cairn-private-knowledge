@@ -123,11 +123,12 @@ export default function Home() {
   const answer = trpc.projects.answer.useMutation();
   const createProject = trpc.projects.create.useMutation();
   const bootstrapCaliforniaFamilyCode = trpc.projects.bootstrapCaliforniaFamilyCode.useMutation();
+  const bootstrapCongressGov = trpc.projects.bootstrapCongressGov.useMutation();
   const refresh = trpc.collections.refresh.useMutation();
   const updateProfile = trpc.collections.updateProfile.useMutation();
   const uploadDocument = trpc.collections.uploadDocument.useMutation();
   const utils = trpc.useUtils();
-  const busy = preview.isPending || create.isPending || createProject.isPending || bootstrapCaliforniaFamilyCode.isPending || startImport.isPending || continueImport.isPending || refresh.isPending || updateProfile.isPending || answer.isPending || uploadDocument.isPending;
+  const busy = preview.isPending || create.isPending || createProject.isPending || bootstrapCaliforniaFamilyCode.isPending || bootstrapCongressGov.isPending || startImport.isPending || continueImport.isPending || refresh.isPending || updateProfile.isPending || answer.isPending || uploadDocument.isPending;
   const awake = turns.length > 0;
   const activeProject = useMemo(() => projects.data?.find((project) => project.id === activeProjectId) ?? projects.data?.[0], [activeProjectId, projects.data]);
   const projectNeedsEvidence = Boolean(isAuthenticated && collections.isFetched && !collections.data?.length);
@@ -221,6 +222,22 @@ export default function Home() {
       append({ id: id(), kind: "note", text: `California Family Code expert is prepared with ${setup.sourceCount} official route references from your Family Code source map. Cairn will not crawl the public portal because its robots policy disallows it. The next import will use an approved official database extraction, preserve its archive version, and answer only after the resulting statutory text is saved.` });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Cairn could not prepare the California Family Code expert.";
+      toast.error(message);
+      append({ id: id(), kind: "note", text: message });
+    }
+  }
+
+  async function startCongressGovExpert() {
+    try {
+      const setup = await bootstrapCongressGov.mutateAsync();
+      await utils.projects.list.invalidate();
+      await utils.collections.list.invalidate({ projectId: setup.projectId });
+      setActiveProjectId(setup.projectId);
+      setActiveCollectionId(null);
+      setProjectsOpen(false);
+      append({ id: id(), kind: "note", text: setup.alreadyExists ? `Congress.gov federal law expert is already prepared with ${setup.sourceCount} separate official source boundaries. It will not answer until an approved source is saved.` : "Congress.gov federal law expert is prepared with separate bill-text, public-law, and U.S. Code boundaries. No federal text is evidence yet; Cairn will not combine or answer from these sources until a specific official snapshot is approved." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Cairn could not prepare the Congress.gov expert.";
       toast.error(message);
       append({ id: id(), kind: "note", text: message });
     }
@@ -388,6 +405,10 @@ export default function Home() {
       </Conversation>
       <div className="border-t border-border py-4"><CommandBar compact value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} mode={composerMode} onModeChange={setComposerMode} onUpload={choosePrivateDocument} onWebSource={() => { setCommand("https://"); setComposerMode("idle"); inputRef.current?.focus(); }} onSources={() => isAuthenticated ? setSourcesOpen(true) : startLogin()} onProjects={() => isAuthenticated ? setProjectsOpen(true) : startLogin()} projectLabel={activeProject?.name} /></div>
     </main>}
+
+    {projectsOpen && <aside className="fixed bottom-4 left-4 right-4 z-[60] mx-auto max-w-md rounded-2xl border border-border bg-[var(--composer-surface)]/95 p-3 text-[var(--composer-foreground)] shadow-xl backdrop-blur-sm sm:left-auto sm:right-6 sm:bottom-6" aria-label="Additional official expert">
+      <button type="button" disabled={busy} onClick={() => void startCongressGovExpert()} className="w-full text-left disabled:opacity-50"><span className="flex items-center gap-2 text-sm font-medium"><BookOpen className="h-4 w-4 text-[var(--accent-signal)]" /> Prepare Congress.gov federal law expert</span><span className="mt-1 block text-xs leading-5 text-[var(--composer-muted)]">Separate bill text, public laws, and U.S. Code sources. Nothing is imported yet.</span></button>
+    </aside>}
 
     {sourcesOpen && ["official_primary", "official_procedural"].includes(detail.data?.collection.sourceAuthority ?? "") && <PrimaryLawArchiveStatus archive={detail.data?.sourceArchive} />}
 

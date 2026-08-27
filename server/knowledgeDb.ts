@@ -599,6 +599,44 @@ export async function bootstrapCaliforniaFamilyCodeExpert(userId: number) {
   return { projectId, collectionId, sourceCount: urls.length, archive: null, alreadyExists: false };
 }
 
+export async function bootstrapCongressGovExpert(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("The private data store is not available yet.");
+  const existing = await db.select().from(projects).where(and(eq(projects.userId, userId), eq(projects.name, "Congress.gov federal law expert"))).limit(1);
+  if (existing[0]) {
+    const sourceCount = await db.select({ count: sql<number>`count(*)` }).from(collections).where(eq(collections.projectId, existing[0].id));
+    return { projectId: existing[0].id, sourceCount: Number(sourceCount[0]?.count ?? 0), alreadyExists: true };
+  }
+  const projectResult = await db.insert(projects).values({
+    userId,
+    name: "Congress.gov federal law expert",
+    description: "Official federal bill text, public laws, and U.S. Code sources kept in separate evidence boundaries.",
+    projectKind: "primary_law",
+  });
+  const projectId = Number(projectResult[0].insertId);
+  const common = { userId, projectId, audience: "A careful researcher", tone: "Direct, exact, and evidence-led", answerMode: "extractive" as const, includePaths: "/", excludePaths: "", pageLimit: 1, sourceAuthority: "official_primary" as const, publisher: "Congress.gov, Library of Congress" };
+  await createCollection({
+    ...common,
+    name: "Congress.gov — bill and resolution text",
+    rootUrl: "https://www.congress.gov/legislation",
+    scope: "Prepared official federal bill and resolution text boundary. Versions, Congress number, and bill identifier must be recorded before any evidence is admitted; no current bill text has been imported.",
+  });
+  await createCollection({
+    ...common,
+    name: "Congress.gov — public laws and Statutes at Large",
+    rootUrl: "https://www.congress.gov/public-laws",
+    scope: "Prepared official public-law and Statutes at Large boundary. Enacted law text remains distinct from bill versions and is not yet imported.",
+  });
+  await createCollection({
+    ...common,
+    name: "U.S. Code — official codification",
+    rootUrl: "https://uscode.house.gov/",
+    scope: "Prepared official U.S. Code boundary. Current codified text must remain distinct from Congress.gov bill and public-law sources; no code text has been imported.",
+    publisher: "Office of the Law Revision Counsel, U.S. House of Representatives",
+  });
+  return { projectId, sourceCount: 3, alreadyExists: false };
+}
+
 function safeDocumentName(value: string) {
   const cleaned = value.replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim();
   return (cleaned || "Untitled document").slice(0, 255);

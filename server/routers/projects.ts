@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { answerFromProject, bootstrapCaliforniaFamilyCodeExpert, createProject, listProjects } from "../knowledgeDb";
+import { answerFromProject, bootstrapCaliforniaFamilyCodeExpert, bootstrapCongressGovExpert, createProject, listProjects } from "../knowledgeDb";
 import { protectedProcedure, router } from "../_core/trpc";
 
 const projectInput = z.object({
@@ -22,6 +22,13 @@ export const projectsRouter = router({
       return await bootstrapCaliforniaFamilyCodeExpert(ctx.user.id);
     } catch (cause) {
       throw new TRPCError({ code: "BAD_REQUEST", message: cause instanceof Error ? cause.message : "Cairn could not prepare the California Family Code expert." });
+    }
+  }),
+  bootstrapCongressGov: protectedProcedure.mutation(async ({ ctx }) => {
+    try {
+      return await bootstrapCongressGovExpert(ctx.user.id);
+    } catch (cause) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: cause instanceof Error ? cause.message : "Cairn could not prepare the Congress.gov expert." });
     }
   }),
   answer: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), question: z.string().trim().min(4).max(600) })).mutation(async ({ ctx, input }) => {

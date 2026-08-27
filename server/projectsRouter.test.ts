@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   bootstrapCaliforniaFamilyCodeExpert: vi.fn(),
+  bootstrapCongressGovExpert: vi.fn(),
   listProjects: vi.fn(),
   answerFromProject: vi.fn(),
 }));
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./knowledgeDb", () => ({
   createProject: mocks.createProject,
   bootstrapCaliforniaFamilyCodeExpert: mocks.bootstrapCaliforniaFamilyCodeExpert,
+  bootstrapCongressGovExpert: mocks.bootstrapCongressGovExpert,
   listProjects: mocks.listProjects,
   answerFromProject: mocks.answerFromProject,
 }));
@@ -37,6 +39,14 @@ describe("projects router", () => {
 
     await expect(caller.bootstrapCaliforniaFamilyCode()).resolves.toEqual({ projectId: 11, collectionId: 22, sourceCount: 241, alreadyExists: false });
     expect(mocks.bootstrapCaliforniaFamilyCodeExpert).toHaveBeenCalledWith(42);
+  });
+
+  it("prepares a separate Congress.gov expert for the authenticated owner", async () => {
+    mocks.bootstrapCongressGovExpert.mockResolvedValue({ projectId: 12, sourceCount: 3, alreadyExists: false });
+    const caller = projectsRouter.createCaller(ctx);
+
+    await expect(caller.bootstrapCongressGov()).resolves.toEqual({ projectId: 12, sourceCount: 3, alreadyExists: false });
+    expect(mocks.bootstrapCongressGovExpert).toHaveBeenCalledWith(42);
   });
 
   it("retrieves evidence only through the selected project boundary", async () => {
