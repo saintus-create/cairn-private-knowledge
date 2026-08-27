@@ -430,6 +430,27 @@ export async function getCollection(userId: number, collectionId: number) {
   return rows[0];
 }
 
+export async function getLatestSourceArchive(userId: number, collectionId: number) {
+  const collection = await getCollection(userId, collectionId);
+  if (!collection || collection.sourceAuthority !== "official_primary") return null;
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({
+      fileName: sourceArchives.fileName,
+      sourceUrl: sourceArchives.sourceUrl,
+      archiveSha256: sourceArchives.archiveSha256,
+      acquiredAt: sourceArchives.acquiredAt,
+      recordCount: sourceArchives.recordCount,
+      extractSha256: sourceArchives.extractSha256,
+    })
+    .from(sourceArchives)
+    .where(eq(sourceArchives.collectionId, collection.id))
+    .orderBy(desc(sourceArchives.acquiredAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function listPages(userId: number, collectionId: number) {
   const db = await getDb();
   if (!db) return [];

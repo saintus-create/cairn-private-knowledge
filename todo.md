@@ -120,7 +120,10 @@
 - [ ] Validate the new first-use transition on desktop and a physical mobile browser.
 - [x] Implement a bounded official-download preparation worker that extracts only approved Family Code records from the California Legislative Information Downloadable Database rather than crawling robots-disallowed public pages.
 - [x] Parse the selected official archive into code-section records with archive identity, retrieval time, code/division/part/chapter/section metadata, and source hashes before storage.
-- [ ] Add section-level citation rendering and source-status disclosure for prepared and imported primary-law collections.
+- [x] Add section-level citation rendering and source-status disclosure for prepared and imported primary-law collections.
+- [x] Expose the latest primary-law archive provenance and prepared-versus-imported status through the protected collection-detail API.
+- [x] Render durable primary-law archive status in the Sources detail view instead of relying only on transient project-start messages.
+- [x] Add regression coverage for primary-law collection detail provenance and status alongside exact section citations.
 - [ ] Add official Rules of Court Title Five as a separately labeled procedural source after its official PDF import path is verified.
 - [x] Do not use repository snapshots as answer evidence for the Family Code expert; retain them only as a source map and extraction-validation aid.
 - [x] Select an approved official Downloadable Database archive and record its file name, publication timestamp, checksum, and source URL before extraction.

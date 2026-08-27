@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { answerFromCollection, createCollection, ensureDefaultProject, getCollection, getLatestImportBatch, importUploadedDocument, listCollections, listPageSnapshots, listPages, refreshCollection, runNextImportBatch, startImport, updateProfile } from "../knowledgeDb";
+import { answerFromCollection, createCollection, ensureDefaultProject, getCollection, getLatestImportBatch, getLatestSourceArchive, importUploadedDocument, listCollections, listPageSnapshots, listPages, refreshCollection, runNextImportBatch, startImport, updateProfile } from "../knowledgeDb";
 import { assertPublicWebsiteUrl, previewWebsiteScope } from "../websiteSafety";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -25,9 +25,12 @@ export const collectionsRouter = router({
   get: protectedProcedure.input(z.object({ collectionId: z.number().int().positive() })).query(async ({ ctx, input }) => {
     const collection = await getCollection(ctx.user.id, input.collectionId);
     if (!collection) throw new TRPCError({ code: "NOT_FOUND", message: "Collection not found." });
-    const pages = await listPages(ctx.user.id, input.collectionId);
-    const batch = await getLatestImportBatch(ctx.user.id, input.collectionId);
-    return { collection, pages, batch };
+    const [pages, batch, sourceArchive] = await Promise.all([
+      listPages(ctx.user.id, input.collectionId),
+      getLatestImportBatch(ctx.user.id, input.collectionId),
+      getLatestSourceArchive(ctx.user.id, input.collectionId),
+    ]);
+    return { collection, pages, batch, sourceArchive };
   }),
   history: protectedProcedure
     .input(z.object({ collectionId: z.number().int().positive(), pageId: z.number().int().positive() }))
