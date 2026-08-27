@@ -79,9 +79,11 @@
 - [ ] Verify the micro texture remains nearly imperceptible and preserves compositor contrast at desktop and mobile breakpoints.
 - [x] Apply font-smoothing and flatter typography rendering across the dark Cairn interface.
 - [ ] Verify cleaner text clarity and contrast on desktop and mobile surfaces.
-- [ ] Audit current website crawl, import, file-size, and document-extraction limits for large collections.
-- [ ] Define a safe scalable workflow for sites with thousands of pages and multiple uploaded documents.
-- [ ] Design a statute-focused large-corpus import that preserves section hierarchy, primary citations, amendment context, and source provenance.
+- [x] Audit current website crawl, import, file-size, and document-extraction limits for large collections.
+- [x] Define a safe scalable workflow for sites with thousands of pages and multiple uploaded documents.
+- [x] Design a statute-focused large-corpus import that preserves section hierarchy, primary citations, amendment context, and source provenance.
+- [x] Document a concrete large-website and multi-document ingestion workflow with queue states, manifest fields, retry leases, and review gates.
+- [x] Expand the statute-focused corpus design with explicit amendment-history retention, hierarchy mapping, citation fields, and successive-release behavior.
 - [ ] Evaluate Firecrawl as an optional crawler worker within a general, connector-neutral large-collection ingestion architecture.
 - [x] Define and implement the crawler-to-Cairn custody handoff so external discovery/extraction services cannot become the collection’s system of record.
 - [ ] Design and implement a native sitemap-discovery and durable large-collection import queue before adding an optional Firecrawl worker.
