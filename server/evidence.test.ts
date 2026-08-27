@@ -61,6 +61,25 @@ describe("evidence-first answers", () => {
     expect(result.citations[0]?.url).toBe("https://downloads.leginfo.legislature.ca.gov/pubinfo_2025.zip#FAM5602.200080870");
   });
 
+  it("displays stored Family Code legal provenance without changing the official archive citation URL", () => {
+    const result = buildEvidenceResponse({
+      collection: "California Family Code",
+      answerMode: "extractive",
+      question: "What does Family Code section 5602 provide?",
+      rows: [{
+        passageId: 1,
+        pageTitle: "California Family Code § 5602.",
+        headingPath: "California Family Code § 5602.",
+        anchor: "official:FAM5602.200080870",
+        url: "https://downloads.leginfo.legislature.ca.gov/pubinfo_2025.zip#FAM5602.200080870",
+        passageText: "An obligee may register an order issued in this state using the same procedures specified in subdivision (a) of Section 5601.",
+        officialCitationMetadata: { authority: "California Family Code", code: "FAM", sectionNumber: "5602", statute: { year: "2000", chapter: "808", section: "7" }, effectiveDate: "2001-01-01", recordKey: "FAM5602.200080870", archiveSha256: "a3efc8049f45406a4cc96871e1a23c3af8ead6bf81847947bdbf57d136c8215e", sourceUrl: "https://downloads.leginfo.legislature.ca.gov/pubinfo_2025.zip#FAM5602.200080870" },
+      }],
+    });
+    expect(result.citations[0]?.url).toBe("https://downloads.leginfo.legislature.ca.gov/pubinfo_2025.zip#FAM5602.200080870");
+    expect(result.citations[0]?.headingPath).toContain("Cal. Fam. Code · § 5602 · Stats. 2000, ch. 808, § 7 · effective 2001-01-01 · archive a3efc8049f45…");
+  });
+
   it("collapses several matched passages from one official statutory section into one archive citation", () => {
     const url = "https://downloads.leginfo.legislature.ca.gov/pubinfo_2025.zip#FAM5602.200080870";
     const result = buildEvidenceResponse({

@@ -92,13 +92,21 @@ function batchesOf<T>(items: T[], size: number) {
   return batches;
 }
 
+export function officialFamilyCodeCitationMetadata(record: OfficialFamilyCodeRecord) {
+  const canonicalUrl = `${record.archive.sourceUrl}#${encodeURIComponent(record.recordKey)}`;
+  const sectionNumber = record.sectionNumber.trim().replace(/\.$/, "");
+  const effectiveDate = record.effectiveDate?.slice(0, 10) || null;
+  return { authority: "California Family Code", code: record.code, sectionNumber, statute: record.statute, effectiveDate, history: record.history, recordKey: record.recordKey, archiveSha256: record.archive.archiveSha256, sourceUrl: canonicalUrl };
+}
+
 function officialFamilyCodePageInput(record: OfficialFamilyCodeRecord) {
   const canonicalUrl = `${record.archive.sourceUrl}#${encodeURIComponent(record.recordKey)}`;
   const title = `California Family Code § ${record.sectionNumber}`;
   const hierarchy = [record.hierarchy.division, record.hierarchy.title, record.hierarchy.part, record.hierarchy.chapter, record.hierarchy.article].filter(Boolean).join(" · ");
   const headings = [{ level: 1, text: title, anchor: `official:${record.recordKey}` }, ...(hierarchy ? [{ level: 2, text: hierarchy, anchor: `official:${record.recordKey}:hierarchy` }] : [])];
   const text = `${title}\n\n${record.text}${record.history ? `\n\nOfficial history: ${record.history}` : ""}`;
-  return { record, canonicalUrl, title, headings, text, contentHash: createHash("sha256").update(text).digest("hex") };
+  const officialCitationMetadata = officialFamilyCodeCitationMetadata(record);
+  return { record, canonicalUrl, title, headings, text, officialCitationMetadata, contentHash: createHash("sha256").update(text).digest("hex") };
 }
 
 function validateOfficialFamilyCodeCorpus(manifest: OfficialFamilyCodeManifest, records: OfficialFamilyCodeRecord[]) {
@@ -201,6 +209,7 @@ export async function importOfficialFamilyCodeCorpus(input: {
         canonicalUrl: page.canonicalUrl,
         officialRecordKey: page.record.recordKey,
         officialTextSha256: page.record.textSha256,
+        officialCitationMetadata: page.officialCitationMetadata,
         pageTitle: page.title,
         headings: page.headings,
         cleanText: page.text,
@@ -221,6 +230,7 @@ export async function importOfficialFamilyCodeCorpus(input: {
         version: 1,
         pageTitle: page.title,
         headings: page.headings,
+        officialCitationMetadata: page.officialCitationMetadata,
         cleanText: page.text,
         contentHash: page.contentHash,
         fetchedAt: now,
@@ -358,6 +368,7 @@ export async function applyOfficialFamilyCodeDelta(input: {
         canonicalUrl: page.canonicalUrl,
         officialRecordKey: page.record.recordKey,
         officialTextSha256: page.record.textSha256,
+        officialCitationMetadata: page.officialCitationMetadata,
         pageTitle: page.title,
         headings: page.headings,
         cleanText: page.text,
@@ -382,6 +393,7 @@ export async function applyOfficialFamilyCodeDelta(input: {
         importBatchId: batchId,
         canonicalUrl: page.canonicalUrl,
         officialTextSha256: page.record.textSha256,
+        officialCitationMetadata: page.officialCitationMetadata,
         pageTitle: page.title,
         headings: page.headings,
         cleanText: page.text,
@@ -393,7 +405,7 @@ export async function applyOfficialFamilyCodeDelta(input: {
       }).where(eq(collectionPages.id, existing.id));
       const versionRows = await tx.select({ version: pageSnapshots.version }).from(pageSnapshots).where(eq(pageSnapshots.pageId, existing.id)).orderBy(desc(pageSnapshots.version)).limit(1);
       const version = (versionRows[0]?.version ?? 0) + 1;
-      await tx.insert(pageSnapshots).values({ pageId: existing.id, importBatchId: batchId, sourceArchiveId: archiveId, version, pageTitle: page.title, headings: page.headings, cleanText: page.text, contentHash: page.contentHash, fetchedAt: now });
+      await tx.insert(pageSnapshots).values({ pageId: existing.id, importBatchId: batchId, sourceArchiveId: archiveId, version, pageTitle: page.title, headings: page.headings, officialCitationMetadata: page.officialCitationMetadata, cleanText: page.text, contentHash: page.contentHash, fetchedAt: now });
       const passageDrafts = chunkSnapshot({ canonicalUrl: page.canonicalUrl, title: page.title, headings: page.headings, text: page.text, contentHash: page.contentHash, fetchedAt: now }).map((draft) => ({ ...draft, collectionId: collection.id, pageId: existing.id }));
       for (const passageBatch of batchesOf(passageDrafts, 100)) if (passageBatch.length) await tx.insert(passages).values(passageBatch);
     }
@@ -1047,6 +1059,7 @@ export async function answerFromCollection(userId: number, collectionId: number,
       anchor: passages.anchor,
       pageTitle: collectionPages.pageTitle,
       url: collectionPages.canonicalUrl,
+      officialCitationMetadata: collectionPages.officialCitationMetadata,
     })
     .from(passages)
     .innerJoin(collectionPages, eq(passages.pageId, collectionPages.id))
@@ -1084,6 +1097,7 @@ export async function answerFromProject(userId: number, projectId: number, quest
       anchor: passages.anchor,
       pageTitle: collectionPages.pageTitle,
       url: collectionPages.canonicalUrl,
+      officialCitationMetadata: collectionPages.officialCitationMetadata,
     })
     .from(passages)
     .innerJoin(collectionPages, eq(passages.pageId, collectionPages.id))

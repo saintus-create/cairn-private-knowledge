@@ -112,7 +112,7 @@
 - [x] Define an official-primary-law policy that prioritizes statute text, bill text, and official legislative history over commentary or third-party summaries.
 - [x] Add a California Legislative Information expert-project starter.
 - [x] Make official portals such as Congress.gov selectable as separate subsequent expert starters with their own provenance and evidence boundaries.
-- [ ] Preserve section, code, session/version, effective-date, and official-source URL provenance in legislative citations and evidence snapshots.
+- [x] Preserve section, code, session/version, effective-date, and official-source URL provenance in legislative citations and evidence snapshots.
 - [x] Establish a safe staged ingestion design for full statutory corpora that remains resumable, inspectable, and honest about scope and currency.
 - [x] Locate the user’s Family Code repository and inventory its official source links, code text, Rules of Court, documentation, formats, and update metadata.
 - [x] Convert the verified Family Code repository source map into a separate Cairn expert-project manifest without treating repository copy as the authoritative legal source by default.

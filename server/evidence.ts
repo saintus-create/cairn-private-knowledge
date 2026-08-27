@@ -5,6 +5,7 @@ export type EvidenceRow = {
   anchor: string;
   pageTitle: string;
   url: string;
+  officialCitationMetadata?: unknown;
 };
 
 export function queryTerms(question: string) {
@@ -32,6 +33,17 @@ export function citationUrl(url: string, anchor: string, passageText: string) {
   if (anchor.startsWith("official:")) return `${url.split("#")[0]}#${encodeURIComponent(anchor.slice(9))}`;
   const exactText = anchor.startsWith("text:") ? anchor.slice(5) : passageText.slice(0, 120);
   return `${url}#:~:text=${encodeURIComponent(exactText)}`;
+}
+
+function provenanceForCitation(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = metadata as Record<string, unknown>;
+  if (value.authority !== "California Family Code" || typeof value.sectionNumber !== "string") return null;
+  const statute = value.statute && typeof value.statute === "object" ? value.statute as Record<string, unknown> : null;
+  const statuteLine = statute && typeof statute.year === "string" && typeof statute.chapter === "string" && typeof statute.section === "string" ? `Stats. ${statute.year}, ch. ${statute.chapter}, § ${statute.section}` : null;
+  const effectiveDate = typeof value.effectiveDate === "string" && value.effectiveDate ? `effective ${value.effectiveDate}` : null;
+  const archiveSha256 = typeof value.archiveSha256 === "string" ? `archive ${value.archiveSha256.slice(0, 12)}…` : null;
+  return ["Cal. Fam. Code", `§ ${value.sectionNumber}`, statuteLine, effectiveDate, archiveSha256].filter(Boolean).join(" · ");
 }
 
 export function buildEvidenceResponse(input: {
@@ -73,7 +85,7 @@ export function buildEvidenceResponse(input: {
     id: row.passageId,
     title: row.pageTitle,
     url: citationUrl(row.url, row.anchor, row.passageText),
-    headingPath: row.headingPath,
+    headingPath: [row.headingPath, provenanceForCitation(row.officialCitationMetadata)].filter(Boolean).join(" · "),
     excerpt: excerptForQuestion(row.passageText, terms),
     score: row.score,
   }));
