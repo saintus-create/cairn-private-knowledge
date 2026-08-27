@@ -1,0 +1,2 @@
+ALTER TABLE `collection_pages` MODIFY COLUMN `sourceStatus` enum('queued','ready','unchanged','failed','skipped','retired') NOT NULL DEFAULT 'queued';--> statement-breakpoint
+ALTER TABLE `collection_pages` ADD `officialTextSha256` varchar(64);

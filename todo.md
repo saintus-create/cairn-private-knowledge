@@ -129,7 +129,7 @@
 - [x] Select an approved official Downloadable Database archive and record its file name, publication timestamp, checksum, and source URL before extraction.
 - [x] Extract only the California Family Code table and law-section records in a bounded environment before any statutory text is admitted to Cairn evidence.
 - [x] Build the initial Family Code corpus as one coherent official archive snapshot rather than piecemeal portal-page imports.
-- [ ] Compare each later official archive against section hashes and admit only changed or new statutory records while retaining prior snapshots.
+- [x] Compare each later official archive against section hashes and admit only changed or new statutory records while retaining prior snapshots.
 - [x] Define a private project model that separates unrelated research contexts while allowing multiple websites and documents inside each project.
 - [x] Make collections, source imports, retrieval, and citations project-scoped so one project cannot leak evidence into another.
 - [x] Add a calm project switcher and a “new project” path that fit Cairn’s single-composer interface without becoming a dashboard.

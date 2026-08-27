@@ -3,6 +3,8 @@ export type OfficialRecordHash = {
   textSha256: string;
 };
 
+export type OfficialArchiveDeltaPlan = ReturnType<typeof planOfficialArchiveDelta>;
+
 export function compareOfficialRecordSnapshots(previous: OfficialRecordHash[], next: OfficialRecordHash[]) {
   const previousByKey = new Map<string, OfficialRecordHash>();
   const nextByKey = new Map<string, OfficialRecordHash>();
@@ -22,4 +24,14 @@ export function compareOfficialRecordSnapshots(previous: OfficialRecordHash[], n
   const unchanged = next.filter((record) => previousByKey.get(record.recordKey)?.textSha256 === record.textSha256);
   const retired = previous.filter((record) => !nextByKey.has(record.recordKey));
   return { added, changed, unchanged, retired };
+}
+
+export function planOfficialArchiveDelta(previous: OfficialRecordHash[], next: OfficialRecordHash[]) {
+  const delta = compareOfficialRecordSnapshots(previous, next);
+  return {
+    ...delta,
+    applyCount: delta.added.length + delta.changed.length,
+    retainedCount: delta.unchanged.length,
+    retiredCount: delta.retired.length,
+  };
 }
