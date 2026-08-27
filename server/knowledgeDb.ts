@@ -262,7 +262,10 @@ export async function bootstrapCaliforniaFamilyCodeExpert(userId: number) {
   const existing = await db.select().from(projects).where(and(eq(projects.userId, userId), eq(projects.name, "California Family Code expert"))).limit(1);
   if (existing[0]) {
     const existingCollection = await db.select({ id: collections.id }).from(collections).where(eq(collections.projectId, existing[0].id)).limit(1);
-    return { projectId: existing[0].id, collectionId: existingCollection[0]?.id ?? null, sourceCount: 0, alreadyExists: true };
+    const activeArchive = existingCollection[0]
+      ? await db.select({ fileName: sourceArchives.fileName, recordCount: sourceArchives.recordCount, acquiredAt: sourceArchives.acquiredAt }).from(sourceArchives).where(eq(sourceArchives.collectionId, existingCollection[0].id)).orderBy(desc(sourceArchives.acquiredAt)).limit(1)
+      : [];
+    return { projectId: existing[0].id, collectionId: existingCollection[0]?.id ?? null, sourceCount: activeArchive[0]?.recordCount ?? 0, archive: activeArchive[0] ?? null, alreadyExists: true };
   }
   const urls = await familyCodeOfficialUrls();
   const projectResult = await db.insert(projects).values({
@@ -288,7 +291,7 @@ export async function bootstrapCaliforniaFamilyCodeExpert(userId: number) {
     publisher: "California Office of Legislative Counsel",
     sourceMapUrl: FAMILY_CODE_SOURCE_MAP_PAGE,
   });
-  return { projectId, collectionId, sourceCount: urls.length, alreadyExists: false };
+  return { projectId, collectionId, sourceCount: urls.length, archive: null, alreadyExists: false };
 }
 
 function safeDocumentName(value: string) {

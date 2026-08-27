@@ -204,7 +204,7 @@ export default function Home() {
       setActiveCollectionId(setup.collectionId);
       setProjectsOpen(false);
       if (setup.alreadyExists || !setup.collectionId) {
-        append({ id: id(), kind: "note", text: "California Family Code expert is already available. Its answers remain limited to the official sources saved in that project." });
+        append({ id: id(), kind: "note", text: setup.archive ? `California Family Code expert is active from the official ${setup.archive.fileName} snapshot acquired ${new Date(setup.archive.acquiredAt).toLocaleDateString()}. ${setup.archive.recordCount.toLocaleString()} active official records are available; answers remain limited to this saved corpus.` : "California Family Code expert is prepared, but it has no active official archive yet. Cairn will not make statutory claims until a verified official snapshot is imported." });
         return;
       }
       await utils.collections.list.invalidate({ projectId: setup.projectId });
