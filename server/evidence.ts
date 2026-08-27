@@ -11,8 +11,9 @@ export function queryTerms(question: string) {
   const stopWords = new Set(["about", "after", "also", "archive", "before", "does", "from", "have", "into", "more", "most", "only", "over", "said", "says", "that", "the", "then", "this", "what", "when", "where", "which", "with", "would"]);
   return question
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/[^a-z0-9.\s]/g, " ")
     .split(/\s+/)
+    .map((term) => term.replace(/^\.+|\.+$/g, ""))
     .filter((term) => term.length > 2 && !stopWords.has(term))
     .slice(0, 7);
 }
@@ -26,6 +27,7 @@ function excerptForQuestion(text: string, terms: string[]) {
 
 export function citationUrl(url: string, anchor: string, passageText: string) {
   if (/downloads\.leginfo\.legislature\.ca\.gov\/[^#]+\.zip#FAM/i.test(url)) return url;
+  if (anchor.startsWith("pdfpage:")) return `${url.split("#")[0]}#page=${Number(anchor.slice(8))}`;
   if (anchor.startsWith("id:")) return `${url}#${encodeURIComponent(anchor.slice(3))}`;
   if (anchor.startsWith("official:")) return `${url.split("#")[0]}#${encodeURIComponent(anchor.slice(9))}`;
   const exactText = anchor.startsWith("text:") ? anchor.slice(5) : passageText.slice(0, 120);

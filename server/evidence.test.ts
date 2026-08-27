@@ -29,6 +29,23 @@ describe("evidence-first answers", () => {
     expect(citationUrl("https://example.org/guide", "text:Evidence trail", "ignored")).toBe("https://example.org/guide#:~:text=Evidence%20trail");
   });
 
+  it("opens a cited procedural rule at its original official PDF page", () => {
+    expect(citationUrl("https://courts.ca.gov/system/files?file=file/roc-title-5_3.pdf", "pdfpage:12", "ignored")).toBe("https://courts.ca.gov/system/files?file=file/roc-title-5_3.pdf#page=12");
+  });
+
+  it("prioritizes an exact decimal procedural rule number and retains its PDF page anchor", () => {
+    const result = buildEvidenceResponse({
+      collection: "California Rules of Court — Title Five",
+      answerMode: "extractive",
+      question: "What does Rule 5.2 say about the Family Rules?",
+      rows: [
+        { passageId: 1, pageTitle: "California Rules of Court, Title Five — Rule 5.2. Division title", headingPath: "Rule 5.2", anchor: "pdfpage:2", url: "https://courts.ca.gov/system/files?file=file/roc-title-5_3.pdf#rule=5.2", passageText: "The rules in this division may be referred to as the Family Rules." },
+        { passageId: 2, pageTitle: "California Rules of Court, Title Five — Rule 5.14. Sanctions", headingPath: "Rule 5.14", anchor: "pdfpage:7", url: "https://courts.ca.gov/system/files?file=file/roc-title-5_3.pdf#rule=5.14", passageText: "Sanctions may be imposed for violations of rules of court in family law cases." },
+      ],
+    });
+    expect(result.citations[0]).toMatchObject({ title: "California Rules of Court, Title Five — Rule 5.2. Division title", url: "https://courts.ca.gov/system/files?file=file/roc-title-5_3.pdf#page=2" });
+  });
+
   it("prioritizes an exact statutory section title and preserves its official record anchor", () => {
     const result = buildEvidenceResponse({
       collection: "California Family Code",

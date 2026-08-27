@@ -124,7 +124,7 @@
 - [x] Expose the latest primary-law archive provenance and prepared-versus-imported status through the protected collection-detail API.
 - [x] Render durable primary-law archive status in the Sources detail view instead of relying only on transient project-start messages.
 - [x] Add regression coverage for primary-law collection detail provenance and status alongside exact section citations.
-- [ ] Add official Rules of Court Title Five as a separately labeled procedural source after its official PDF import path is verified.
+- [x] Add official Rules of Court Title Five as a separately labeled procedural source after its official PDF import path is verified.
 - [x] Do not use repository snapshots as answer evidence for the Family Code expert; retain them only as a source map and extraction-validation aid.
 - [x] Select an approved official Downloadable Database archive and record its file name, publication timestamp, checksum, and source URL before extraction.
 - [x] Extract only the California Family Code table and law-section records in a bounded environment before any statutory text is admitted to Cairn evidence.

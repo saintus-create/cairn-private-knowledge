@@ -63,6 +63,29 @@ export type OfficialFamilyCodeManifest = {
   activeRecordCount: number;
 };
 
+export type OfficialCaliforniaRuleRecord = {
+  ruleNumber: string;
+  title: string;
+  pageNumber: number;
+  text: string;
+  textSha256: string;
+};
+
+export type OfficialCaliforniaRulesTitleFiveManifest = {
+  corpus: "California Rules of Court Title Five";
+  sourceAuthority: "official_procedural";
+  publisher: "California Courts, Judicial Branch of California";
+  source: {
+    fileName: string;
+    sourceUrl: string;
+    fileSha256: string;
+    fileBytes: number;
+    observedLastModified: string;
+    acquiredAt: string;
+  };
+  ruleCount: number;
+};
+
 function batchesOf<T>(items: T[], size: number) {
   const batches: T[][] = [];
   for (let index = 0; index < items.length; index += size) batches.push(items.slice(index, index + size));
@@ -388,6 +411,112 @@ export async function applyOfficialFamilyCodeDelta(input: {
   });
 }
 
+export async function importOfficialCaliforniaRulesTitleFive(input: {
+  userId: number;
+  projectId: number;
+  manifest: OfficialCaliforniaRulesTitleFiveManifest;
+  rules: OfficialCaliforniaRuleRecord[];
+  sourcePdf: Buffer;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("The private data store is not available yet.");
+  const project = await getProject(input.userId, input.projectId);
+  if (!project || project.projectKind !== "primary_law") throw new Error("Official procedural imports require the owner’s primary-law project.");
+  const { manifest, rules, sourcePdf } = input;
+  const source = manifest.source;
+  if (manifest.corpus !== "California Rules of Court Title Five" || manifest.sourceAuthority !== "official_procedural" || manifest.publisher !== "California Courts, Judicial Branch of California") throw new Error("The supplied manifest is not an official California Rules of Court Title Five corpus.");
+  if (!/^https:\/\/courts\.ca\.gov\/system\/files\?file=file\/roc-title-5/i.test(source.sourceUrl) || !/^[a-f0-9]{64}$/i.test(source.fileSha256)) throw new Error("The supplied procedural corpus does not identify the approved California Courts Title Five PDF.");
+  if (!sourcePdf.length || sourcePdf.length !== source.fileBytes || createHash("sha256").update(sourcePdf).digest("hex") !== source.fileSha256) throw new Error("The supplied Title Five PDF did not match its verified file provenance.");
+  if (!rules.length || rules.length !== manifest.ruleCount) throw new Error("The supplied procedural rule count does not match its manifest.");
+  const seenRules = new Set<string>();
+  for (const rule of rules) {
+    if (!/^5\.\d+(?:\.\d+)?$/.test(rule.ruleNumber) || !rule.title.trim() || !rule.text.trim() || rule.pageNumber < 1) throw new Error("The procedural corpus includes an invalid Title Five rule record.");
+    if (createHash("sha256").update(rule.text).digest("hex") !== rule.textSha256) throw new Error(`The procedural rule text hash did not match Rule ${rule.ruleNumber}.`);
+    if (seenRules.has(rule.ruleNumber)) throw new Error(`The procedural corpus repeats Rule ${rule.ruleNumber}.`);
+    seenRules.add(rule.ruleNumber);
+  }
+  const existingCollections = await db.select({ id: collections.id }).from(collections).where(and(eq(collections.userId, input.userId), eq(collections.projectId, project.id), eq(collections.sourceAuthority, "official_procedural"), eq(collections.rootUrl, source.sourceUrl))).limit(1);
+  if (existingCollections[0]) {
+    const prior = await db.select({ id: sourceArchives.id }).from(sourceArchives).where(and(eq(sourceArchives.collectionId, existingCollections[0].id), eq(sourceArchives.archiveSha256, source.fileSha256))).limit(1);
+    if (prior[0]) return { collectionId: existingCollections[0].id, archiveId: prior[0].id, ruleCount: 0, alreadyImported: true };
+    throw new Error("A different official Title Five PDF is already present. Prepare a reviewed procedural-rule delta before replacing it.");
+  }
+  const storedPdf = await storagePut(`users/${input.userId}/primary-law/${source.fileSha256}/${source.fileName}`, sourcePdf, "application/pdf");
+  const extract = Buffer.from(`${rules.map((rule) => JSON.stringify(rule)).join("\n")}\n`, "utf8");
+  const extractSha256 = createHash("sha256").update(extract).digest("hex");
+  const storedExtract = await storagePut(`users/${input.userId}/primary-law/${source.fileSha256}/title-five-rules.jsonl`, extract, "application/x-ndjson");
+  const now = new Date();
+
+  return db.transaction(async (tx) => {
+    const collectionResult = await tx.insert(collections).values({
+      userId: input.userId,
+      projectId: project.id,
+      name: "California Rules of Court — Title Five",
+      rootUrl: source.sourceUrl,
+      scope: `Official California Courts Title Five: Family and Juvenile Rules. Verified PDF ${source.fileName}, acquired ${source.acquiredAt}; rule citations open the official PDF at the stored page location. This separate procedural collection is not statutory text.`,
+      audience: "A careful general reader",
+      tone: "Direct, clear-eyed, and evidence-led",
+      answerMode: "extractive",
+      sourceAuthority: "official_procedural",
+      publisher: manifest.publisher,
+      includePaths: "/",
+      excludePaths: "",
+      pageLimit: rules.length,
+      importStatus: "ready",
+    });
+    const collectionId = Number(collectionResult[0].insertId);
+    const batchResult = await tx.insert(importBatches).values({ collectionId, status: "complete", requestedCount: rules.length, processedCount: rules.length, unchangedCount: 0, failedCount: 0, completedAt: now });
+    const batchId = Number(batchResult[0].insertId);
+    const archiveResult = await tx.insert(sourceArchives).values({
+      collectionId,
+      sourceUrl: source.sourceUrl,
+      fileName: source.fileName,
+      archiveSha256: source.fileSha256,
+      observedLastModified: new Date(source.observedLastModified),
+      acquiredAt: new Date(source.acquiredAt),
+      recordCount: rules.length,
+      sourceFileStorageKey: storedPdf.key,
+      sourceFileStorageUrl: storedPdf.url,
+      sourceFileSha256: source.fileSha256,
+      sourceFileBytes: source.fileBytes,
+      extractStorageKey: storedExtract.key,
+      extractStorageUrl: storedExtract.url,
+      extractSha256,
+    });
+    const archiveId = Number(archiveResult[0].insertId);
+    const rulePages = rules.map((rule) => {
+      const title = `California Rules of Court, Title Five — Rule ${rule.ruleNumber}. ${rule.title}`;
+      const canonicalUrl = `${source.sourceUrl}#rule=${encodeURIComponent(rule.ruleNumber)}`;
+      const headings = [{ level: 1, text: title, anchor: `pdfpage:${rule.pageNumber}` }];
+      const text = `${title}\n\n${rule.text}`;
+      return { rule, title, canonicalUrl, headings, text, contentHash: createHash("sha256").update(text).digest("hex") };
+    });
+    for (const pageBatch of batchesOf(rulePages, 100)) await tx.insert(collectionPages).values(pageBatch.map((page) => ({
+      collectionId,
+      importBatchId: batchId,
+      canonicalUrl: page.canonicalUrl,
+      officialRecordKey: `ROC5:${page.rule.ruleNumber}`,
+      officialTextSha256: page.rule.textSha256,
+      pageTitle: page.title,
+      headings: page.headings,
+      cleanText: page.text,
+      contentHash: page.contentHash,
+      sourceStatus: "ready" as const,
+      fetchedAt: now,
+      importedAt: now,
+    })));
+    const pages = await tx.select({ id: collectionPages.id, officialRecordKey: collectionPages.officialRecordKey }).from(collectionPages).where(eq(collectionPages.collectionId, collectionId));
+    const pageIdByRuleKey = new Map(pages.filter((page): page is typeof page & { officialRecordKey: string } => Boolean(page.officialRecordKey)).map((page) => [page.officialRecordKey, page.id]));
+    if (pageIdByRuleKey.size !== rulePages.length) throw new Error("The official Title Five rule pages did not persist completely.");
+    for (const pageBatch of batchesOf(rulePages, 80)) {
+      await tx.insert(pageSnapshots).values(pageBatch.map((page) => ({ pageId: pageIdByRuleKey.get(`ROC5:${page.rule.ruleNumber}`)!, importBatchId: batchId, sourceArchiveId: archiveId, version: 1, pageTitle: page.title, headings: page.headings, cleanText: page.text, contentHash: page.contentHash, fetchedAt: now })));
+      const passageDrafts = pageBatch.flatMap((page) => chunkSnapshot({ canonicalUrl: page.canonicalUrl, title: page.title, headings: page.headings, text: page.text, contentHash: page.contentHash, fetchedAt: now }).map((draft) => ({ ...draft, collectionId, pageId: pageIdByRuleKey.get(`ROC5:${page.rule.ruleNumber}`)! })));
+      for (const passageBatch of batchesOf(passageDrafts, 100)) if (passageBatch.length) await tx.insert(passages).values(passageBatch);
+    }
+    return { collectionId, archiveId, ruleCount: rules.length, alreadyImported: false };
+  });
+}
+
 export async function getProject(userId: number, projectId: number) {
   const db = await getDb();
   if (!db) return undefined;
@@ -608,7 +737,7 @@ export async function getCollection(userId: number, collectionId: number) {
 
 export async function getLatestSourceArchive(userId: number, collectionId: number) {
   const collection = await getCollection(userId, collectionId);
-  if (!collection || collection.sourceAuthority !== "official_primary") return null;
+  if (!collection || !["official_primary", "official_procedural"].includes(collection.sourceAuthority)) return null;
   const db = await getDb();
   if (!db) return null;
   const rows = await db

@@ -56,4 +56,17 @@ describe("collections router official archive status", () => {
     await expect(caller.get({ collectionId: 99 })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.getLatestSourceArchive).not.toHaveBeenCalled();
   });
+
+  it("returns the same durable archive provenance contract for an owned official procedural collection", async () => {
+    const collection = { id: 10, userId: 42, sourceAuthority: "official_procedural" };
+    const archive = { fileName: "roc-title-5_3.pdf", recordCount: 260 };
+    mocks.getCollection.mockResolvedValue(collection);
+    mocks.listPages.mockResolvedValue([]);
+    mocks.getLatestImportBatch.mockResolvedValue(null);
+    mocks.getLatestSourceArchive.mockResolvedValue(archive);
+    const caller = collectionsRouter.createCaller(ctx);
+
+    await expect(caller.get({ collectionId: 10 })).resolves.toMatchObject({ collection, sourceArchive: archive });
+    expect(mocks.getLatestSourceArchive).toHaveBeenCalledWith(42, 10);
+  });
 });
