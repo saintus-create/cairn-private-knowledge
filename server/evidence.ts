@@ -19,6 +19,12 @@ export function queryTerms(question: string) {
     .slice(0, 7);
 }
 
+export function readableModelAnswer(value: unknown) {
+  const content = typeof value === "string" ? value.trim() : null;
+  if (!content || content.startsWith("{") || content.startsWith("[") || content.startsWith("```json")) return null;
+  return content.replace(/[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]/g, "").trim() || null;
+}
+
 function excerptForQuestion(text: string, terms: string[]) {
   const sentences = text.split(/(?<=[.!?])\s+/).filter((sentence) => sentence.length > 30);
   return sentences

@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { getDb } from "./db";
 import { collectionPages, collections, importBatches, pageSnapshots, passages, projects, sourceArchives, uploadedDocuments } from "../drizzle/schema";
 import { approvedCollectionUrls, chunkSnapshot, scrapeSnapshot } from "./websiteSafety";
-import { buildEvidenceResponse, queryTerms } from "./evidence";
+import { buildEvidenceResponse, queryTerms, readableModelAnswer } from "./evidence";
 import { invokeLLM } from "./_core/llm";
 import { applyOptionalSynthesis } from "./optionalSynthesis";
 import { planOfficialArchiveDelta } from "./primaryLawDelta";
@@ -1081,7 +1081,7 @@ export async function answerFromCollection(userId: number, collectionId: number,
   });
 }
 
-export async function answerFromProject(userId: number, projectId: number, question: string) {
+export async function answerFromProject(userId: number, projectId: number, question: string, useOptionalSynthesis = true) {
   const db = await getDb();
   if (!db) throw new Error("The private data store is not available yet.");
   const project = await getProject(userId, projectId);
@@ -1104,5 +1104,17 @@ export async function answerFromProject(userId: number, projectId: number, quest
     .innerJoin(collections, eq(passages.collectionId, collections.id))
     .where(and(eq(collections.userId, userId), eq(collections.projectId, project.id), ne(collectionPages.sourceStatus, "retired"), or(...predicates)))
     .limit(80);
-  return buildEvidenceResponse({ collection: project.name, answerMode: "extractive", question, rows });
+  const evidence = buildEvidenceResponse({ collection: project.name, answerMode: "extractive", question, rows });
+  if (evidence.status !== "evidence" || !useOptionalSynthesis) return evidence;
+  const sourcePacket = evidence.citations.map((citation, index) => `Source ${index + 1}: ${citation.title}\n${citation.excerpt}`).join("\n\n");
+  return applyOptionalSynthesis(evidence, true, async () => {
+    const response = await invokeLLM({
+      model: "gpt-5-nano",
+      messages: [
+        { role: "system", content: "Write a concise, natural-language answer using only the approved excerpts. Be direct when the excerpts support a conclusion and state when they do not. Do not invent facts, fill gaps, resolve contradictions, or mention hidden metadata. Do not output JSON, arrays, bullet lists, citation markers, or bracketed source labels; Cairn displays the inspectable citations separately. Write 2–4 short paragraphs, no more than 130 words." },
+        { role: "user", content: `Question: ${question}\n\nApproved excerpts:\n${sourcePacket}` },
+      ],
+    });
+    return readableModelAnswer(response.choices[0]?.message.content) ?? undefined;
+  });
 }

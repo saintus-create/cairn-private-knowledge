@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEvidenceResponse, citationUrl } from "./evidence";
+import { buildEvidenceResponse, citationUrl, readableModelAnswer } from "./evidence";
 
 describe("evidence-first answers", () => {
   const row = {
@@ -10,6 +10,12 @@ describe("evidence-first answers", () => {
     url: "https://example.org/guide",
     passageText: "The handbook requires every decision to retain a source citation and an inspectable evidence trail.",
   };
+
+  it("accepts natural prose but rejects structured model payloads from visible answers", () => {
+    expect(readableModelAnswer("The approved text supports this conclusion.\n\nIt does not establish anything beyond that.")).toContain("approved text");
+    expect(readableModelAnswer("[{\\\"title\\\":\\\"raw metadata\\\"}]")).toBeNull();
+    expect(readableModelAnswer("```json\\n{\\\"answer\\\":\\\"leak\\\"}\\n```")).toBeNull();
+  });
 
   it("returns an explicit boundary when the collection has no matching evidence", () => {
     const result = buildEvidenceResponse({ collection: "Handbook", answerMode: "extractive", question: "What does the archive say about zoning?", rows: [row] });

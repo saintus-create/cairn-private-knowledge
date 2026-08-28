@@ -153,3 +153,9 @@
 - [ ] Compare realistic provider-neutral AI-routing alternatives alongside Cloudflare AI Gateway for an occasional-use evidence workspace.
 - [ ] Verify whether Emergent’s AI SDK/service can provide a suitable optional model layer without becoming Cairn’s identity, storage, or evidence system of record.
 - [ ] Verify whether the user’s Yandex developer services are suitable for Cairn’s source-code backup, private object storage, database, authentication, or deployment needs.
+- [x] Fix garbled bracket/sign output so structured citation metadata never appears as raw answer text.
+- [x] Add an evidence-bounded natural-language AI answer mode with deterministic evidence-only fallback and explicit uncertainty.
+- [x] Add regression coverage for readable answers, citation separation, and insufficient-evidence behavior.
+- [x] Repair the Supabase auth module-resolution error before creating a new durable checkpoint or GitHub backup.
+- [x] Revalidate readable evidence-bounded answers after the auth repair before updating durable copies.
+- [ ] Save the repaired stable checkpoint and synchronize the private GitHub backup to the same revision.
