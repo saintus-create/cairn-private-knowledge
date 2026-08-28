@@ -7,12 +7,14 @@ import superjson from "superjson";
 import App from "./App";
 import { startLogin } from "./const";
 import "./index.css";
+import { getSupabaseAccessToken, isSupabaseConfigured } from "./lib/supabase";
 
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
+  if (isSupabaseConfigured) return;
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 
@@ -43,6 +45,11 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       headers() {
+        const supabaseToken = getSupabaseAccessToken();
+        if (supabaseToken) {
+          return { Authorization: `Bearer ${supabaseToken}` };
+        }
+        if (isSupabaseConfigured) return {};
         // Preview auto-login fallback: when the browser blocks iframe cookies
         // (Safari ITP / private browsing / WebView), the runtime mirrors the
         // session into sessionStorage so we can forward it as a Bearer token.

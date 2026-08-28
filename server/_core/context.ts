@@ -1,5 +1,8 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
+import { getUserByOpenId } from "../db";
+import { getVerifiedSupabaseOwnerEmail } from "../supabaseAuth";
+import { ENV } from "./env";
 import { sdk } from "./sdk";
 
 export type TrpcContext = {
@@ -13,8 +16,13 @@ export async function createContext(
 ): Promise<TrpcContext> {
   let user: User | null = null;
 
+  const supabaseOwnerEmail = await getVerifiedSupabaseOwnerEmail(opts.req.headers.authorization);
+  if (supabaseOwnerEmail && ENV.ownerOpenId) {
+    user = (await getUserByOpenId(ENV.ownerOpenId)) ?? null;
+  }
+
   try {
-    user = await sdk.authenticateRequest(opts.req);
+    user = user ?? (await sdk.authenticateRequest(opts.req));
   } catch (error) {
     // Authentication is optional for public procedures.
     user = null;

@@ -140,3 +140,16 @@
 - [x] Audit the current Manus-dependent authentication, storage, model, database, and hosting assumptions against Cairn’s independent ownership goal.
 - [x] Define a portable Cairn-owned authentication, private file-storage, database, and deployment architecture that does not require a user to sign in through Manus.
 - [x] Create a safe migration plan that preserves private project data, source snapshots, uploaded documents, citations, and existing GitHub backup ownership.
+- [x] Remove underlined first-use labels and centered separator dots from the main Cairn landing controls while retaining clear keyboard-accessible actions.
+- [ ] Replace Manus OAuth with a user-owned authentication boundary so Cairn does not require Manus sign-in for normal use.
+- [ ] Prepare a reversible user-owned database and private-file-storage migration path without disrupting existing evidence or citations.
+- [ ] Add a durable passwordless Supabase session as the first independent-use path, so Cairn can be opened and queried without recurring Manus OAuth prompts.
+- [x] Retrieve the minimum required Supabase project connection values from the user’s existing dashboard session, or request a secure manual login if no session is available.
+- [x] Verify the supplied Supabase project endpoint and align it with one matching publishable key before enabling Cairn’s independent authentication path.
+- [ ] Compare Supabase and Cloudflare for Cairn’s independent authentication, relational evidence database, private document storage, archive provenance, and low-volume operating needs.
+- [ ] Select the user-owned infrastructure path only after presenting clear migration tradeoffs and obtaining the user’s confirmation.
+- [ ] Compare Supabase, Neon, Cloudflare, Railway, and Netlify as complete deployable Cairn stacks rather than evaluating storage in isolation.
+- [ ] Evaluate Cloudflare AI Gateway as an optional, provider-neutral model-routing layer that never replaces Cairn’s deterministic evidence boundary.
+- [ ] Compare realistic provider-neutral AI-routing alternatives alongside Cloudflare AI Gateway for an occasional-use evidence workspace.
+- [ ] Verify whether Emergent’s AI SDK/service can provide a suitable optional model layer without becoming Cairn’s identity, storage, or evidence system of record.
+- [ ] Verify whether the user’s Yandex developer services are suitable for Cairn’s source-code backup, private object storage, database, authentication, or deployment needs.

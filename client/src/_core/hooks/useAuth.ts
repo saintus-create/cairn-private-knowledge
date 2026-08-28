@@ -1,7 +1,8 @@
 import { startLogin } from "@/const";
+import { isSupabaseConfigured, setSupabaseAccessToken, supabase } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -15,6 +16,7 @@ export function useAuth(options?: UseAuthOptions) {
   // desync it from an in-flight login's `state`.
   const { redirectOnUnauthenticated = false, redirectPath } = options ?? {};
   const utils = trpc.useUtils();
+  const [supabaseReady, setSupabaseReady] = useState(!isSupabaseConfigured);
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
@@ -27,8 +29,30 @@ export function useAuth(options?: UseAuthOptions) {
     },
   });
 
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    const applySession = (session: { access_token: string } | null) => {
+      setSupabaseAccessToken(session?.access_token);
+      if (!active) return;
+      setSupabaseReady(true);
+      void utils.auth.me.invalidate();
+    };
+
+    void supabase.auth.getSession().then(({ data }) => applySession(data.session));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => applySession(session));
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, [utils]);
+
   const logout = useCallback(async () => {
     try {
+      if (supabase) {
+        await supabase.auth.signOut();
+        setSupabaseAccessToken(null);
+      }
       await logoutMutation.mutateAsync();
     } catch (error: unknown) {
       if (
@@ -50,6 +74,18 @@ export function useAuth(options?: UseAuthOptions) {
     }
   }, [logoutMutation, utils]);
 
+  const requestMagicLink = useCallback(async (email: string) => {
+    if (!supabase) {
+      startLogin();
+      return;
+    }
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    if (error) throw error;
+  }, []);
+
   const state = useMemo(() => {
     localStorage.setItem(
       "manus-runtime-user-info",
@@ -57,7 +93,7 @@ export function useAuth(options?: UseAuthOptions) {
     );
     return {
       user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
+      loading: (isSupabaseConfigured ? !supabaseReady : meQuery.isLoading) || logoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
     };
@@ -67,11 +103,12 @@ export function useAuth(options?: UseAuthOptions) {
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
+    supabaseReady,
   ]);
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
-    if (meQuery.isLoading || logoutMutation.isPending) return;
+    if ((isSupabaseConfigured ? !supabaseReady : meQuery.isLoading) || logoutMutation.isPending) return;
     if (state.user) return;
     if (typeof window === "undefined") return;
     if (redirectPath && window.location.pathname === redirectPath) return;
@@ -94,5 +131,7 @@ export function useAuth(options?: UseAuthOptions) {
     ...state,
     refresh: () => meQuery.refetch(),
     logout,
+    requestMagicLink,
+    usesSupabase: isSupabaseConfigured,
   };
 }

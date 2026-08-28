@@ -19,8 +19,8 @@ describe("FirstUseStrip", () => {
     const children = React.Children.toArray(strip.props.children) as Array<React.ReactElement<{ onClick?: () => void }>>;
 
     children[0].props.onClick?.();
+    children[1].props.onClick?.();
     children[2].props.onClick?.();
-    children[4].props.onClick?.();
 
     expect(onAsk).toHaveBeenCalledOnce();
     expect(onProject).toHaveBeenCalledOnce();
