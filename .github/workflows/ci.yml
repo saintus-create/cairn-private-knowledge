@@ -11,26 +11,30 @@ concurrency:
   group: cairn-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
+permissions: {}
+
+env:
+  CI: true
 
 jobs:
   validate:
     name: Validate Cairn
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 10.4.1
           run_install: false
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22.x
           cache: pnpm
@@ -41,6 +45,9 @@ jobs:
 
       - name: Typecheck
         run: pnpm run check
+
+      - name: Dependency security audit
+        run: pnpm audit --prod --audit-level high
 
       - name: Unit and integration tests
         run: pnpm test
