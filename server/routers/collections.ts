@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { answerFromCollection, createCollection, ensureDefaultProject, getCollection, getLatestImportBatch, getLatestSourceArchive, importUploadedDocument, listCollections, listPageSnapshots, listPages, refreshCollection, runNextImportBatch, startImport, updateProfile } from "../knowledgeDb";
+import { converseWithCairn } from "../agent/cairnConversation";
 import { assertPublicWebsiteUrl, previewWebsiteScope } from "../websiteSafety";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -15,6 +16,11 @@ const collectionInput = z.object({
   excludePaths: z.string().max(1000).default(""),
   pageLimit: z.number().int().min(1).max(50),
 });
+
+const conversationHistory = z.array(z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string().trim().min(1).max(8_000),
+})).max(12).default([]);
 
 function error(message: string) {
   return new TRPCError({ code: "BAD_REQUEST", message });
@@ -99,10 +105,25 @@ export const collectionsRouter = router({
       }
     }),
   answer: protectedProcedure
-    .input(z.object({ collectionId: z.number().int().positive(), question: z.string().trim().min(4).max(600), useOptionalSynthesis: z.boolean().default(false) }))
+    .input(z.object({
+      collectionId: z.number().int().positive(),
+      question: z.string().trim().min(4).max(600),
+      useOptionalSynthesis: z.boolean().default(false),
+      history: conversationHistory,
+    }))
     .mutation(async ({ ctx, input }) => {
       try {
-        return await answerFromCollection(ctx.user.id, input.collectionId, input.question, input.useOptionalSynthesis);
+        if (!input.useOptionalSynthesis) {
+          return await answerFromCollection(ctx.user.id, input.collectionId, input.question, false);
+        }
+
+        return await converseWithCairn({
+          userId: ctx.user.id,
+          collectionId: input.collectionId,
+          question: input.question,
+          history: input.history,
+          synthesize: true,
+        });
       } catch (cause) {
         throw error(cause instanceof Error ? cause.message : "The collection could not answer that question.");
       }
