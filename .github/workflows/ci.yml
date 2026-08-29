@@ -7,12 +7,18 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: cairn-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   validate:
+    name: Validate Cairn
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v6
