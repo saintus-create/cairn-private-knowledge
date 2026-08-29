@@ -1,3 +1,12 @@
+const legacyForgeUrl = process.env.FORGE_API_URL?.trim() ?? "";
+const legacyForgeKey = process.env.FORGE_API_KEY?.trim() ?? "";
+
+/**
+ * Central application configuration.
+ *
+ * Forge values remain only as a temporary compatibility bridge for legacy
+ * utilities that have not yet been migrated. New Cairn code must not use them.
+ */
 export const ENV = {
   appId: process.env.VITE_APP_ID ?? "",
   cookieSecret: process.env.JWT_SECRET ?? "",
@@ -10,4 +19,7 @@ export const ENV = {
   aiApiKey: process.env.CAIRN_AI_API_KEY ?? "",
   aiModel: process.env.CAIRN_AI_MODEL ?? "openai/gpt-5-nano",
   aiAppUrl: process.env.CAIRN_AI_APP_URL ?? "",
+  // Temporary migration bridge; remove once legacy utilities are migrated.
+  forgeApiUrl: legacyForgeUrl,
+  forgeApiKey: legacyForgeKey,
 };
