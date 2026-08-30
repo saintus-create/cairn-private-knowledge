@@ -10,7 +10,10 @@ type EvidenceResult = Extract<Awaited<ReturnType<typeof answerFromProject>>, { s
 const REASONING_TERMS = /\b(why|how|explain|compare|contrast|analy[sz]e|interpret|teach|learn|argue|evaluate|implication|difference|conflict|contradict|missing|should|could|would|what do you think|make sense)\b/i;
 
 function needsReasoning(question: string, history: CairnConversationMessage[]) {
-  return history.length > 0 || REASONING_TERMS.test(question) || question.trim().split(/\s+/).length > 18;
+  // When an AI key is configured, Cairn is a conversational agent for every
+  // evidence-backed question, not only questions containing reasoning keywords.
+  const aiConfigured = Boolean(process.env.CAIRN_AI_API_KEY?.trim());
+  return aiConfigured || history.length > 0 || REASONING_TERMS.test(question) || question.trim().split(/\s+/).length > 18;
 }
 
 function normalizeHistory(history: CairnConversationMessage[]): AIMessage[] {
