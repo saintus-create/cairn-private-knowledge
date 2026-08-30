@@ -91,7 +91,7 @@
     "@types/pdf-parse": "1.1.4",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",
-    "@vitejs/plugin-react": "^5.0.4",
+    "@vitejs/plugin-react": "^5.2.0",
     "add": "^2.0.6",
     "autoprefixer": "^10.4.21",
     "drizzle-kit": "^0.31.5",
