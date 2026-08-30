@@ -115,13 +115,6 @@
     ],
     "patchedDependencies": {
       "wouter@3.7.1": "patches/wouter@3.7.1.patch"
-    },
-    "overrides": {
-      "tailwindcss>nanoid": "3.3.7",
-      "axios": "^1.16.0",
-      "nanoid": "^5.1.16",
-      "path-to-regexp": "^8.3.0",
-      "lodash": "^4.17.21"
     }
   }
 }
