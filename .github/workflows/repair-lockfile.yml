@@ -2,6 +2,10 @@ name: Repair pnpm lockfile
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - package.json
+      - pnpm-lock.yaml
 
 permissions:
   contents: write
