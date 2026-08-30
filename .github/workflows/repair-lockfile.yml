@@ -6,6 +6,7 @@ on:
     paths:
       - package.json
       - pnpm-lock.yaml
+      - .github/workflows/repair-lockfile.yml
 
 permissions:
   contents: write
@@ -27,7 +28,7 @@ jobs:
           node-version: 22.x
           cache: pnpm
       - name: Regenerate lockfile
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --lockfile-only --no-frozen-lockfile
       - name: Commit lockfile
         run: |
           git config user.name "github-actions[bot]"
