@@ -1,7 +1,5 @@
 ---
-on:
-  schedule: daily
-  workflow_dispatch:
+on: daily
 
 permissions:
   contents: read
@@ -10,6 +8,10 @@ permissions:
   copilot-requests: write
 
 network: defaults
+
+tools:
+  github:
+    toolsets: [default]
 
 safe-outputs:
   create-pull-request:
@@ -21,7 +23,7 @@ Work on the repository as an autonomous maintenance agent.
 
 Preserve Cairn's existing architecture and scope. Do not introduce authentication, user accounts, database migrations, storage migrations, or unrelated infrastructure rewrites unless a concrete failing build or security issue requires one.
 
-Inspect the current repository, CI status, open issues and recent changes. Identify the highest-value blocking engineering work. Implement only changes that are justified by the current code and tests. Run the project's typecheck, tests, and build when available. Do not fabricate successful verification.
+Inspect the current repository, CI status, open issues and recent changes. Identify the highest-value blocking engineering work. Implement only changes justified by the current code and tests. Run the project's typecheck, tests, and build when available. Do not fabricate successful verification.
 
 If meaningful fixes are required, prepare a pull request containing the changes and a concise summary of verification. If there is no worthwhile work, make no changes.
 
