@@ -16,7 +16,9 @@ function env(name: string): string {
 export function getAIProviderConfig(): AIProviderConfig {
   const baseUrl = env("CAIRN_AI_BASE_URL") || "https://openrouter.ai/api/v1";
   const apiKey = env("CAIRN_AI_API_KEY");
-  const model = env("CAIRN_AI_MODEL") || "openai/gpt-4o-mini";
+  // OpenRouter's free router keeps Cairn usable for personal, low-volume use.
+  // Set CAIRN_AI_MODEL to any OpenAI-compatible model when a different model is desired.
+  const model = env("CAIRN_AI_MODEL") || "openrouter/free";
 
   if (!apiKey) {
     throw new Error("CAIRN_AI_API_KEY is not configured.");
