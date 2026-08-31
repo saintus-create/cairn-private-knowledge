@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { getSupabaseOwnerConfig, ownsSupabaseEmail } from "./supabaseOwner";
+import { checkSupabaseConfig } from "./supabaseConfig";
 
 describe("Supabase owner configuration", () => {
-  it("validates the configured project with its server key while retaining the owner identity server-side", async () => {
+  it.skipIf(!checkSupabaseConfig().ready || !process.env.CAIRN_OWNER_EMAIL?.trim())("validates the configured project with its server key while retaining the owner identity server-side", async () => {
     const configured = getSupabaseOwnerConfig();
     expect(configured).not.toBeNull();
     if (!configured) return;

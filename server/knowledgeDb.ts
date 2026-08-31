@@ -5,7 +5,7 @@ import { getDb } from "./db";
 import { collectionPages, collections, importBatches, pageSnapshots, passages, projects, sourceArchives, uploadedDocuments } from "../drizzle/schema";
 import { approvedCollectionUrls, chunkSnapshot, scrapeSnapshot } from "./websiteSafety";
 import { buildEvidenceResponse, queryTerms, readableModelAnswer } from "./evidence";
-import { invokeLLM } from "./_core/llm";
+import { invokeAI } from "./_core/aiProvider";
 import { applyOptionalSynthesis } from "./optionalSynthesis";
 import { planOfficialArchiveDelta } from "./primaryLawDelta";
 import { storageGetSignedUrl, storagePut } from "./storage";
@@ -1069,15 +1069,11 @@ export async function answerFromCollection(userId: number, collectionId: number,
   if (evidence.status !== "evidence" || !useOptionalSynthesis || !collection.aiSynthesisEnabled) return evidence;
   const sourcePacket = evidence.citations.map((citation, index) => `[${index + 1}] ${citation.title} — ${citation.headingPath}\n${citation.excerpt}`).join("\n\n");
   return applyOptionalSynthesis(evidence, true, async () => {
-    const response = await invokeLLM({
-      model: "gpt-5-nano",
-      messages: [
-        { role: "system", content: "You write concise, source-bounded reference entries with direct rhetoric. State conclusions plainly when the supplied excerpts support them; do not soften clear evidence with filler. Never add facts, resolve gaps with assumptions, erase genuine disagreement, or imply certainty beyond the excerpts. Cite relevant statements using [1], [2], and so on. If the excerpts do not support an answer, say exactly: Insufficient evidence in this collection." },
-        { role: "user", content: `Question: ${question}\n\nApproved source excerpts:\n${sourcePacket}\n\nWrite no more than 130 words.` },
-      ],
-    });
-    const content = response.choices[0]?.message.content;
-    return typeof content === "string" ? content : undefined;
+const content = await invokeAI([
+      { role: "system", content: "Write concise, source-bounded reference entries with direct rhetoric. State conclusions plainly when the supplied excerpts support them; do not soften clear evidence with filler. Never add facts, resolve gaps with assumptions, erase genuine disagreement, or imply certainty beyond the excerpts. Cite relevant statements using [1], [2], and so on. If the excerpts do not support an answer, say exactly: Insufficient evidence in this collection." },
+      { role: "user", content: `Question: ${question}\n\nApproved source excerpts:\n${sourcePacket}\n\nWrite no more than 130 words.` },
+    ], { temperature: 0.2 });
+    return content;
   });
 }
 
@@ -1108,13 +1104,10 @@ export async function answerFromProject(userId: number, projectId: number, quest
   if (evidence.status !== "evidence" || !useOptionalSynthesis) return evidence;
   const sourcePacket = evidence.citations.map((citation, index) => `Source ${index + 1}: ${citation.title}\n${citation.excerpt}`).join("\n\n");
   return applyOptionalSynthesis(evidence, true, async () => {
-    const response = await invokeLLM({
-      model: "gpt-5-nano",
-      messages: [
-        { role: "system", content: "Write a concise, natural-language answer using only the approved excerpts. Be direct when the excerpts support a conclusion and state when they do not. Do not invent facts, fill gaps, resolve contradictions, or mention hidden metadata. Do not output JSON, arrays, bullet lists, citation markers, or bracketed source labels; Cairn displays the inspectable citations separately. Write 2–4 short paragraphs, no more than 130 words." },
-        { role: "user", content: `Question: ${question}\n\nApproved excerpts:\n${sourcePacket}` },
-      ],
-    });
-    return readableModelAnswer(response.choices[0]?.message.content) ?? undefined;
+    const content = await invokeAI([
+      { role: "system", content: "Write a concise, natural-language answer using only the approved excerpts. Be direct when the excerpts support a conclusion and state when they do not. Do not invent facts, fill gaps, resolve contradictions, or mention hidden metadata. Do not output JSON, arrays, bullet lists, citation markers, or bracketed source labels; Cairn displays the inspectable citations separately. Write 2–4 short paragraphs, no more than 130 words." },
+      { role: "user", content: `Question: ${question}\n\nApproved excerpts:\n${sourcePacket}` },
+    ], { temperature: 0.2 });
+    return readableModelAnswer(content) ?? undefined;
   });
 }

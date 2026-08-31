@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { checkSupabaseConfig } from "./supabaseConfig";
 
 describe("Supabase project connectivity", () => {
-  it("accepts both configured keys at the selected project without logging them", async () => {
+  it.skipIf(!checkSupabaseConfig().ready)("accepts both configured keys at the selected project without logging them", async () => {
     const checked = checkSupabaseConfig();
     expect(checked.ready).toBe(true);
     if (!checked.ready) return;

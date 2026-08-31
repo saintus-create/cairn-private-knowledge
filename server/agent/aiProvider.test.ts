@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { invokeModel } from "../_core/aiProvider";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { invokeAI } from "../_core/aiProvider";
 
 describe("independent AI provider", () => {
   const originalFetch = globalThis.fetch;
@@ -26,9 +26,7 @@ describe("independent AI provider", () => {
       }),
     );
 
-    const answer = await invokeModel({
-      messages: [{ role: "user", content: "Hello" }],
-    });
+    const answer = await invokeAI([{ role: "user", content: "Hello" }]);
 
     expect(answer).toBe("hello");
     expect(globalThis.fetch).toHaveBeenCalledWith(
@@ -36,6 +34,7 @@ describe("independent AI provider", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ Authorization: "Bearer test-key" }),
+        body: expect.stringContaining('"model":"test-model"'),
       }),
     );
   });
@@ -44,7 +43,7 @@ describe("independent AI provider", () => {
     delete process.env.CAIRN_AI_API_KEY;
 
     await expect(
-      invokeModel({ messages: [{ role: "user", content: "Hello" }] }),
+      invokeAI([{ role: "user", content: "Hello" }]),
     ).rejects.toThrow(/CAIRN_AI_API_KEY/);
   });
 });

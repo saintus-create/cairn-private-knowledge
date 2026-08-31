@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { invokeModel } = vi.hoisted(() => ({
-  invokeModel: vi.fn(),
+const { invokeAI } = vi.hoisted(() => ({
+  invokeAI: vi.fn(),
 }));
 
-vi.mock("../_core/aiProvider", () => ({ invokeModel }));
+vi.mock("../_core/aiProvider", () => ({ invokeAI }));
 
 import { runCairnAgent } from "./cairnAgent";
 
@@ -15,12 +15,12 @@ describe("Cairn agent", () => {
       evidence: [],
     });
 
-    expect(invokeModel).not.toHaveBeenCalled();
+    expect(invokeAI).not.toHaveBeenCalled();
     expect(result.answer).toContain("I don't have enough evidence");
   });
 
   it("passes evidence and conversation history to the provider", async () => {
-    invokeModel.mockResolvedValueOnce("The answer is supported by the supplied evidence.");
+    invokeAI.mockResolvedValueOnce("The answer is supported by the supplied evidence.");
 
     const result = await runCairnAgent({
       question: "What does this mean?",
@@ -39,20 +39,21 @@ describe("Cairn agent", () => {
     });
 
     expect(result.answer).toBe("The answer is supported by the supplied evidence.");
-    expect(invokeModel).toHaveBeenCalledTimes(1);
+    expect(invokeAI).toHaveBeenCalledTimes(1);
 
-    const call = invokeModel.mock.calls[0][0];
-    expect(call.messages).toEqual(
+    const messages = invokeAI.mock.calls[0][0];
+    expect(messages).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ role: "user", content: "Start with the basics." }),
         expect.objectContaining({ role: "assistant", content: "Sure." }),
       ]),
     );
-    expect(call.messages.at(-1).content).toContain("A source-backed fact.");
+    expect(messages.at(-1).content).toBe("What does this mean?");
+    expect(messages[1].content).toContain("A source-backed fact.");
   });
 
   it("returns a safe fallback when the provider fails", async () => {
-    invokeModel.mockRejectedValueOnce(new Error("provider unavailable"));
+    invokeAI.mockRejectedValueOnce(new Error("provider unavailable"));
 
     const result = await runCairnAgent({
       question: "Explain this.",

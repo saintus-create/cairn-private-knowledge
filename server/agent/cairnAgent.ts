@@ -1,7 +1,25 @@
 import { invokeAI, type AIMessage } from "../_core/aiProvider";
 
-export type CairnEvidence = { title?: string; source?: string; excerpt?: string };
-export type CairnAgentInput = { question: string; history?: AIMessage[]; evidence?: CairnEvidence[] };
+export type CairnEvidence = {
+  passageId?: string;
+  title?: string;
+  source?: string;
+  excerpt?: string;
+  text?: string;
+  citation?: string;
+};
+
+export type CairnAgentInput = {
+  question: string;
+  history?: AIMessage[];
+  evidence?: CairnEvidence[];
+};
+
+export type CairnAgentResult = {
+  answer: string;
+  sources: CairnEvidence[];
+  modelUsed: boolean;
+};
 
 const SYSTEM_PROMPT = `You are Cairn, an independent conversational knowledge companion.
 Be natural and conversational, but never pretend to be human or invent experiences.
@@ -12,21 +30,47 @@ Teach at the user's level, explain prerequisites, and encourage follow-up questi
 You may respectfully disagree when the evidence supports it.`;
 
 function formatEvidence(evidence: CairnEvidence[] = []): string {
-  if (!evidence.length) return "No source evidence was supplied for this turn.";
   return evidence.map((item, index) => {
     const heading = item.title || `Source ${index + 1}`;
-    const source = item.source ? `\nSource: ${item.source}` : "";
-    const excerpt = item.excerpt ? `\nExcerpt:\n${item.excerpt}` : "";
+    const source = item.source || item.citation ? `\nSource: ${item.source || item.citation}` : "";
+    const excerpt = item.excerpt || item.text ? `\nExcerpt:\n${item.excerpt || item.text}` : "";
     return `[${index + 1}] ${heading}${source}${excerpt}`;
   }).join("\n\n");
 }
 
-export async function runCairnAgent(input: CairnAgentInput): Promise<string> {
+function fallbackSources(evidence: CairnEvidence[]): string {
+  return evidence.map((item, index) => {
+    const label = item.citation || item.source || item.title || `Source ${index + 1}`;
+    return `[${index + 1}] ${label}`;
+  }).join("\n");
+}
+
+export async function runCairnAgent(input: CairnAgentInput): Promise<CairnAgentResult> {
+  const evidence = input.evidence ?? [];
+  if (!evidence.length) {
+    return {
+      answer: "I don't have enough evidence to answer that question from this project.",
+      sources: [],
+      modelUsed: false,
+    };
+  }
+
   const history = (input.history ?? []).slice(-12);
-  return invokeAI([
+  const messages: AIMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
-    { role: "system", content: `Source material for this turn:\n\n${formatEvidence(input.evidence)}` },
+    { role: "system", content: `Source material for this turn:\n\n${formatEvidence(evidence)}` },
     ...history,
     { role: "user", content: input.question },
-  ], { temperature: 0.2 });
+  ];
+
+  try {
+    const answer = await invokeAI(messages, { temperature: 0.2 });
+    return { answer, sources: evidence, modelUsed: true };
+  } catch {
+    return {
+      answer: `AI synthesis is currently unavailable. The available source material is:\n${fallbackSources(evidence)}`,
+      sources: evidence,
+      modelUsed: false,
+    };
+  }
 }

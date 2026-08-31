@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   bootstrapCongressGovExpert: vi.fn(),
   listProjects: vi.fn(),
   answerFromProject: vi.fn(),
+  converseWithProject: vi.fn(),
 }));
 
 vi.mock("./knowledgeDb", () => ({
@@ -14,6 +15,10 @@ vi.mock("./knowledgeDb", () => ({
   bootstrapCongressGovExpert: mocks.bootstrapCongressGovExpert,
   listProjects: mocks.listProjects,
   answerFromProject: mocks.answerFromProject,
+}));
+
+vi.mock("./cairnAgent", () => ({
+  converseWithProject: mocks.converseWithProject,
 }));
 
 import { projectsRouter } from "./routers/projects";
@@ -49,12 +54,17 @@ describe("projects router", () => {
     expect(mocks.bootstrapCongressGovExpert).toHaveBeenCalledWith(42);
   });
 
-  it("retrieves evidence only through the selected project boundary", async () => {
-    mocks.answerFromProject.mockResolvedValue({ status: "insufficient-evidence" });
+  it("answers through the selected project boundary", async () => {
+    mocks.converseWithProject.mockResolvedValue({ status: "insufficient-evidence" });
     const caller = projectsRouter.createCaller(ctx);
 
     await expect(caller.answer({ projectId: 9, question: "What does this statute require?" })).resolves.toEqual({ status: "insufficient-evidence" });
-    expect(mocks.answerFromProject).toHaveBeenCalledWith(42, 9, "What does this statute require?");
+    expect(mocks.converseWithProject).toHaveBeenCalledWith({
+      userId: 42,
+      projectId: 9,
+      question: "What does this statute require?",
+      history: [],
+    });
   });
 
   it("lists only the authenticated owner’s projects", async () => {
