@@ -149,6 +149,34 @@ body {
   @keyframes enter-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .shimmer-text { background: linear-gradient(105deg, var(--muted-foreground) 25%, var(--accent-signal) 45%, var(--muted-foreground) 65%); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: text-shimmer 1.35s linear infinite; }
   @keyframes text-shimmer { to { background-position: -220% 0; } }
+
+  /* Keep the composer subtly alive without turning it into a distraction. */
+  form:has(input[placeholder="Ask Cairn · https://…"]) {
+    position: relative;
+    isolation: isolate;
+  }
+
+  form:has(input[placeholder="Ask Cairn · https://…"])::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    background: radial-gradient(circle at 18% 0%, oklch(0.67 0.16 235 / 0.10), transparent 34%);
+    opacity: 0.55;
+    animation: composer-breathe 4.8s ease-in-out infinite;
+  }
+
+  form:has(input[placeholder="Ask Cairn · https://…"]):focus-within::before {
+    opacity: 0.95;
+    animation-duration: 3.2s;
+  }
+
+  @keyframes composer-breathe {
+    0%, 100% { transform: translate3d(-2%, 0, 0) scale(0.98); opacity: 0.42; }
+    50% { transform: translate3d(3%, 1%, 0) scale(1.03); opacity: 0.72; }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) { .shimmer-text { color: var(--foreground); } }
