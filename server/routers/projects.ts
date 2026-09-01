@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { answerFromProject, bootstrapCaliforniaFamilyCodeExpert, bootstrapCongressGovExpert, createProject, listProjects } from "../knowledgeDb";
 import { converseWithProject } from "../cairnAgent";
+import { research } from "../researchPipeline";
 import { protectedProcedure, router } from "../_core/trpc";
 
 const projectInput = z.object({
@@ -43,9 +44,9 @@ export const projectsRouter = router({
     history: z.array(conversationMessage).max(10).default([]),
   })).mutation(async ({ ctx, input }) => {
     try {
-      return await converseWithProject({ userId: ctx.user.id, projectId: input.projectId, question: input.question, history: input.history });
+      return await research({ userId: ctx.user.id, projectId: input.projectId, query: input.question });
     } catch (cause) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: cause instanceof Error ? cause.message : "Cairn could not complete that conversation." });
+      throw new TRPCError({ code: "BAD_REQUEST", message: cause instanceof Error ? cause.message : "Cairn could not complete that research." });
     }
   }),
   evidence: protectedProcedure.input(z.object({
