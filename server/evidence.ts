@@ -1,3 +1,5 @@
+import { rankEvidence } from "./ragRetriever";
+
 export type EvidenceRow = {
   passageId: number;
   passageText: string;
@@ -59,15 +61,13 @@ export function buildEvidenceResponse(input: {
   rows: EvidenceRow[];
 }) {
   const terms = queryTerms(input.question);
-  const candidates = input.rows
-    .map((row) => ({
-      ...row,
-      score: terms.reduce((score, term) => {
-        const hits = Number(row.passageText.toLowerCase().includes(term)) + Number(row.pageTitle.toLowerCase().includes(term)) + Number(row.headingPath.toLowerCase().includes(term));
-        return score + hits * (/^\d+(?:\.\d+)?$/.test(term) ? 8 : 1);
-      }, 0),
-    }))
-    .filter((row) => row.score > 0 && assessSourceQuality(row.passageText).usable);
+  const candidates = rankEvidence(
+    input.rows
+      .filter((row) => assessSourceQuality(row.passageText).usable)
+      .map((row) => ({ ...row, id: row.passageId, text: row.passageText, title: row.pageTitle, heading: row.headingPath, source: row.url })),
+    input.question,
+    12,
+  );
   const bestBySource = new Map<string, (typeof candidates)[number]>();
   for (const candidate of candidates) {
     const previous = bestBySource.get(candidate.url);

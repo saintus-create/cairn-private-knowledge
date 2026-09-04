@@ -13,6 +13,8 @@ export const ENV = {
   databaseUrl: process.env.DATABASE_URL ?? "",
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
+  singleOwnerMode: process.env.CAIRN_SINGLE_OWNER_MODE !== "false",
+  singleOwnerOpenId: process.env.CAIRN_OWNER_OPEN_ID ?? process.env.OWNER_OPEN_ID ?? "cairn-owner",
   isProduction: process.env.NODE_ENV === "production",
   aiProvider: process.env.CAIRN_AI_PROVIDER ?? "openrouter",
   aiBaseUrl: process.env.CAIRN_AI_BASE_URL ?? "https://openrouter.ai/api/v1",

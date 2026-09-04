@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   bootstrapCongressGovExpert: vi.fn(),
   listProjects: vi.fn(),
   answerFromProject: vi.fn(),
+  research: vi.fn(),
 }));
 
 vi.mock("./knowledgeDb", () => ({
@@ -14,6 +15,10 @@ vi.mock("./knowledgeDb", () => ({
   bootstrapCongressGovExpert: mocks.bootstrapCongressGovExpert,
   listProjects: mocks.listProjects,
   answerFromProject: mocks.answerFromProject,
+}));
+
+vi.mock("./researchPipeline", () => ({
+  research: mocks.research,
 }));
 
 import { projectsRouter } from "./routers/projects";
@@ -49,12 +54,20 @@ describe("projects router", () => {
     expect(mocks.bootstrapCongressGovExpert).toHaveBeenCalledWith(42);
   });
 
-  it("retrieves evidence only through the selected project boundary", async () => {
-    mocks.answerFromProject.mockResolvedValue({ status: "insufficient-evidence" });
+  it("runs the pinned research boundary for the authenticated owner", async () => {
+    mocks.research.mockResolvedValue({
+      status: "evidence",
+      collection: "California law",
+      answerMode: "extractive",
+      answer: "The source supports the conclusion.",
+      citations: [{ id: 1, title: "Official source", url: "https://example.com", headingPath: "Section 1", excerpt: "The source supports the conclusion.", score: 2 }],
+      relatedEntries: [],
+      synthesized: false,
+    });
     const caller = projectsRouter.createCaller(ctx);
 
-    await expect(caller.answer({ projectId: 9, question: "What does this statute require?" })).resolves.toEqual({ status: "insufficient-evidence" });
-    expect(mocks.answerFromProject).toHaveBeenCalledWith(42, 9, "What does this statute require?");
+    await expect(caller.answer({ projectId: 9, question: "What does this statute require?" })).resolves.toMatchObject({ status: "evidence", citations: [{ title: "Official source" }] });
+    expect(mocks.research).toHaveBeenCalledWith({ userId: 42, projectId: 9, query: "What does this statute require?" });
   });
 
   it("lists only the authenticated owner’s projects", async () => {
