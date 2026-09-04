@@ -16,7 +16,6 @@ max-ai-credits: 300
 
 safe-outputs:
   create-pull-request:
-
 ---
 
 # Cairn Background Maintainer

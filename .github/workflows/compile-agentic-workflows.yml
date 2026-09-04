@@ -3,8 +3,8 @@ name: Compile Agentic Workflows
 on:
   push:
     paths:
-      - '.github/workflows/*.md'
-      - '.github/workflows/compile-agentic-workflows.yml'
+      - ".github/workflows/*.md"
+      - ".github/workflows/compile-agentic-workflows.yml"
   workflow_dispatch:
 
 permissions:
@@ -22,7 +22,7 @@ jobs:
       - name: Set up GitHub CLI
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.x"
 
       - name: Install GitHub Agentic Workflows extension
         run: gh extension install github/gh-aw

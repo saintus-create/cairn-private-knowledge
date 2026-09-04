@@ -1,0 +1,38 @@
+# Hugging Face Space configuration for LuxGPT-basedEN Demo
+# https://huggingface.co/docs/hub/spaces-config-reference
+
+# Space SDK to use (streamlit for Python apps)
+sdk: streamlit
+
+# Python version
+python_version: "3.11"
+
+# App file
+app_file: app.py
+
+# Hardware (CPU is sufficient for inference API)
+hardware: cpu
+
+# Environment variables (secrets should be added via Space settings)
+# HF_TOKEN should be added as a secret in the Space settings
+
+# Space title and description
+title: LuxGPT-basedEN Legal AI Demo
+emoji: ⚖️
+colorFrom: blue
+colorTo: purple
+
+# Tags
+tags:
+  - legal-ai
+  - question-answering
+  - knowledge-base
+  - luxgpt
+  - demo
+
+# License
+license: apache-2.0
+
+# Requirements
+requirements:
+  - requirements.txt

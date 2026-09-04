@@ -3,7 +3,7 @@ export type AIMessage = {
   content: string;
 };
 
-export type AIProvider = "openrouter" | "mistral" | "codestral" | "groq" | "custom";
+export type AIProvider = "openrouter" | "mistral" | "codestral" | "groq" | "huggingface" | "custom";
 
 export type AIProviderConfig = {
   provider: AIProvider;
@@ -19,9 +19,10 @@ function env(name: string): string {
 export function getAIProviderConfig(): AIProviderConfig {
   const requestedProvider = env("CAIRN_AI_PROVIDER").toLowerCase() as AIProvider | "";
   const provider: AIProvider = requestedProvider ||
-    (env("CODESTRAL_API_KEY") ? "codestral" :
-      env("MISTRAL_API_KEY") ? "mistral" :
-        env("GROQ_API_KEY") ? "groq" : "openrouter");
+    (env("HUGGINGFACE_API_KEY") ? "huggingface" :
+      env("CODESTRAL_API_KEY") ? "codestral" :
+        env("MISTRAL_API_KEY") ? "mistral" :
+          env("GROQ_API_KEY") ? "groq" : "openrouter");
 
   if (provider === "mistral") {
     const apiKey = env("MISTRAL_API_KEY") || env("CAIRN_AI_API_KEY");
@@ -56,6 +57,17 @@ export function getAIProviderConfig(): AIProviderConfig {
     };
   }
 
+  if (provider === "huggingface") {
+    const apiKey = env("HUGGINGFACE_API_KEY") || env("CAIRN_AI_API_KEY");
+    if (!apiKey) throw new Error("HUGGINGFACE_API_KEY or CAIRN_AI_API_KEY is not configured.");
+    return {
+      provider,
+      baseUrl: env("CAIRN_AI_BASE_URL") || "https://api-inference.huggingface.co",
+      apiKey,
+      model: env("CAIRN_AI_MODEL") || "laurabernardy/LuxGPT-basedEN",
+    };
+  }
+
   if (provider === "custom") {
     const apiKey = env("CAIRN_AI_API_KEY");
     if (!apiKey) throw new Error("CAIRN_AI_API_KEY is not configured.");
@@ -79,23 +91,53 @@ export function getAIProviderConfig(): AIProviderConfig {
 
 export async function invokeAI(messages: AIMessage[], options: { temperature?: number } = {}) {
   const config = getAIProviderConfig();
-  const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.apiKey}`,
-      ...(process.env.CAIRN_AI_APP_URL
-        ? { "HTTP-Referer": process.env.CAIRN_AI_APP_URL }
-        : {}),
-      ...(process.env.CAIRN_AI_APP_NAME
-        ? { "X-Title": process.env.CAIRN_AI_APP_NAME }
-        : { "X-Title": "Cairn" }),
-    },
-    body: JSON.stringify({
+  
+  // Build the URL based on provider
+  let url: string;
+  let requestBody: unknown;
+  let headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${config.apiKey}`,
+    ...(process.env.CAIRN_AI_APP_URL
+      ? { "HTTP-Referer": process.env.CAIRN_AI_APP_URL }
+      : {}),
+    ...(process.env.CAIRN_AI_APP_NAME
+      ? { "X-Title": process.env.CAIRN_AI_APP_NAME }
+      : { "X-Title": "Cairn" }),
+  };
+
+  if (config.provider === "huggingface") {
+    // Hugging Face inference API for chat/text generation
+    // Some models support /chat/completions, others need /models/{model}/chat/completions
+    // or the text generation endpoint
+    const modelPath = config.model.replace(/\//g, "%2F"); // URL encode slashes
+    url = `${config.baseUrl.replace(/\/$/, "")}/models/${modelPath}`;
+    
+    // Convert messages to Hugging Face chat format or text prompt
+    const lastUserMessage = messages.filter(m => m.role === "user").at(-1)?.content || "";
+    const systemPrompt = messages.filter(m => m.role === "system").at(-1)?.content || "";
+    
+    // Try OpenAI-compatible chat endpoint first for Hugging Face
+    // If that fails, fall back to text generation
+    requestBody = {
+      messages,
+      temperature: options.temperature ?? 0.2,
+      max_tokens: 1024,
+    };
+  } else {
+    // OpenAI-compatible providers (OpenRouter, Mistral, Codestral, Groq, Custom)
+    url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`;
+    requestBody = {
       model: config.model,
       messages,
       temperature: options.temperature ?? 0.2,
-    }),
+    };
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
@@ -103,10 +145,29 @@ export async function invokeAI(messages: AIMessage[], options: { temperature?: n
     throw new Error(`AI provider returned ${response.status}: ${detail.slice(0, 500)}`);
   }
 
-  const payload = (await response.json()) as {
-    choices?: Array<{ message?: { content?: unknown } }>;
-  };
-  const content = payload.choices?.[0]?.message?.content;
+  const payload = await response.json();
+  let content: string;
+
+  if (config.provider === "huggingface") {
+    // Hugging Face response format
+    // Could be OpenAI-compatible { choices: [{ message: { content } }] }
+    // or Hugging Face format { generated_text: "..." } or [ { generated_text: "..." } ]
+    if (Array.isArray(payload)) {
+      // Text generation response: [ { generated_text: "..." } ]
+      content = payload[0]?.generated_text as string;
+    } else if (typeof payload === "object" && payload && "generated_text" in payload) {
+      // Single text generation response: { generated_text: "..." }
+      content = (payload as { generated_text?: string }).generated_text as string;
+    } else if (typeof payload === "object" && payload && "choices" in payload) {
+      // OpenAI-compatible chat response
+      content = (payload as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content as string;
+    } else {
+      throw new Error(`Unexpected Hugging Face response format: ${JSON.stringify(payload).slice(0, 200)}`);
+    }
+  } else {
+    // OpenAI-compatible response format
+    content = (payload as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content as string;
+  }
 
   if (typeof content !== "string" || !content.trim()) {
     throw new Error("AI provider returned no usable response.");

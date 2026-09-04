@@ -15,8 +15,8 @@ tools:
 
 safe-outputs:
   create-pull-request:
-
 ---
+
 # Cairn maintenance agent
 
 Work on the repository as an autonomous maintenance agent.

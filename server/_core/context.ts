@@ -1,6 +1,6 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
-import { getUserByOpenId, upsertUser } from "../db";
+import { getDb, getUserByOpenId, upsertUser } from "../db";
 import { getVerifiedSupabaseOwnerEmail } from "../supabaseAuth";
 import { ENV } from "./env";
 import { sdk } from "./sdk";
@@ -17,13 +17,32 @@ export async function createContext(
   let user: User | null = null;
 
   if (ENV.singleOwnerMode) {
-    await upsertUser({ openId: ENV.singleOwnerOpenId, name: "Cairn owner", role: "admin" });
-    user = (await getUserByOpenId(ENV.singleOwnerOpenId)) ?? null;
+    const db = await getDb();
+    if (db) {
+      await upsertUser({ openId: ENV.singleOwnerOpenId, name: "Cairn owner", role: "admin" });
+      user = (await getUserByOpenId(ENV.singleOwnerOpenId)) ?? null;
+    } else {
+      console.log("[Auth] Database not available, using synthetic single-owner user");
+      user = {
+        id: 1,
+        openId: ENV.singleOwnerOpenId,
+        name: "Cairn owner",
+        email: null,
+        loginMethod: null,
+        role: "admin",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastSignedIn: new Date(),
+      };
+    }
   }
 
   const supabaseOwnerEmail = await getVerifiedSupabaseOwnerEmail(opts.req.headers.authorization);
   if (!user && supabaseOwnerEmail && ENV.ownerOpenId) {
-    user = (await getUserByOpenId(ENV.ownerOpenId)) ?? null;
+    const db = await getDb();
+    if (db) {
+      user = (await getUserByOpenId(ENV.ownerOpenId)) ?? null;
+    }
   }
 
   try {

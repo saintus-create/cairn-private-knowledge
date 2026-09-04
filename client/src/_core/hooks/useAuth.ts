@@ -1,5 +1,9 @@
 import { startLogin } from "@/const";
-import { isSupabaseConfigured, setSupabaseAccessToken, supabase } from "@/lib/supabase";
+import {
+  isSupabaseConfigured,
+  setSupabaseAccessToken,
+  supabase,
+} from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -39,8 +43,12 @@ export function useAuth(options?: UseAuthOptions) {
       void utils.auth.me.invalidate();
     };
 
-    void supabase.auth.getSession().then(({ data }) => applySession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => applySession(session));
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => applySession(data.session));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) =>
+      applySession(session)
+    );
     return () => {
       active = false;
       data.subscription.unsubscribe();
@@ -93,7 +101,9 @@ export function useAuth(options?: UseAuthOptions) {
     );
     return {
       user: meQuery.data ?? null,
-      loading: (isSupabaseConfigured ? !supabaseReady : meQuery.isLoading) || logoutMutation.isPending,
+      loading:
+        (isSupabaseConfigured ? !supabaseReady : meQuery.isLoading) ||
+        logoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
     };
@@ -108,7 +118,11 @@ export function useAuth(options?: UseAuthOptions) {
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
-    if ((isSupabaseConfigured ? !supabaseReady : meQuery.isLoading) || logoutMutation.isPending) return;
+    if (
+      (isSupabaseConfigured ? !supabaseReady : meQuery.isLoading) ||
+      logoutMutation.isPending
+    )
+      return;
     if (state.user) return;
     if (typeof window === "undefined") return;
     if (redirectPath && window.location.pathname === redirectPath) return;

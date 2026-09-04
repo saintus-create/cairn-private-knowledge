@@ -1,0 +1,96 @@
+# Cairn Production Docker Compose
+# Culturally Inclusive AI Headquarters
+# https://github.com/saintus-create/cairn-private-knowledge
+
+version: '3.8'
+
+services:
+  # Cairn Application
+  cairn:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cairn-ai
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Required
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
+      
+      # Database (adjust for your setup)
+      - DATABASE_URL=${DATABASE_URL:-mysql://cairn:password@db:3306/cairn}
+      
+      # AI Provider Configuration
+      - CAIRN_AI_PROVIDER=${CAIRN_AI_PROVIDER:-huggingface}
+      - CAIRN_AI_BASE_URL=${CAIRN_AI_BASE_URL:-https://api-inference.huggingface.co}
+      - CAIRN_AI_MODEL=${CAIRN_AI_MODEL:-laurabernardy/LuxGPT-basedEN}
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - CODESTRAL_API_KEY=${CODESTRAL_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - CAIRN_AI_API_KEY=${CAIRN_AI_API_KEY}
+      
+      # OAuth (optional - for multi-user mode)
+      - CAIRN_SINGLE_OWNER_MODE=${CAIRN_SINGLE_OWNER_MODE:-true}
+      - CAIRN_OWNER_OPEN_ID=${CAIRN_OWNER_OPEN_ID:-cairn-admin}
+      - OAUTH_SERVER_URL=${OAUTH_SERVER_URL}
+      - VITE_APP_ID=${VITE_APP_ID:-cairn-local}
+      - VITE_OAUTH_PORTAL_URL=${VITE_OAUTH_PORTAL_URL}
+      
+      # App metadata for AI provider
+      - CAIRN_AI_APP_URL=${CAIRN_AI_APP_URL:-http://localhost:3000}
+      - CAIRN_AI_APP_NAME=${CAIRN_AI_APP_NAME:-Cairn}
+    depends_on:
+      - db
+    networks:
+      - cairn-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: cairn-db
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root-password}
+      - MYSQL_DATABASE=cairn
+      - MYSQL_USER=cairn
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - cairn-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Adminer (Database GUI - optional)
+  adminer:
+    image: adminer:latest
+    container_name: cairn-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - cairn-network
+    depends_on:
+      - db
+
+volumes:
+  mysql_data:
+
+networks:
+  cairn-network:
+    driver: bridge
