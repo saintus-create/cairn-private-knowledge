@@ -70,6 +70,9 @@
   --sidebar-ring: oklch(0.63 0.13 235);
   --accent-signal: oklch(0.62 0.15 235);
   --accent-signal-foreground: oklch(0.985 0.008 250);
+  --composer-surface: oklch(0.995 0.002 250);
+  --composer-foreground: oklch(0.24 0.018 250);
+  --composer-muted: oklch(0.48 0.018 250);
 }
 
 .dark {
@@ -126,6 +129,12 @@ body {
 }
 
 .cairn-viewport { background: var(--background); }
+
+.cairn-viewport { background: #fff; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .cairn-viewport form:has(input[placeholder="Ask Cairn · https://…"])::before { animation: none; opacity: 0; }
+}
 
 .dark .cairn-viewport {
   background:
