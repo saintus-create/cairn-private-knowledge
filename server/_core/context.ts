@@ -1,6 +1,6 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
-import { getUserByOpenId } from "../db";
+import { getUserByOpenId, upsertUser } from "../db";
 import { getVerifiedSupabaseOwnerEmail } from "../supabaseAuth";
 import { ENV } from "./env";
 import { sdk } from "./sdk";
@@ -16,8 +16,13 @@ export async function createContext(
 ): Promise<TrpcContext> {
   let user: User | null = null;
 
+  if (ENV.singleOwnerMode) {
+    await upsertUser({ openId: ENV.singleOwnerOpenId, name: "Cairn owner", role: "admin" });
+    user = (await getUserByOpenId(ENV.singleOwnerOpenId)) ?? null;
+  }
+
   const supabaseOwnerEmail = await getVerifiedSupabaseOwnerEmail(opts.req.headers.authorization);
-  if (supabaseOwnerEmail && ENV.ownerOpenId) {
+  if (!user && supabaseOwnerEmail && ENV.ownerOpenId) {
     user = (await getUserByOpenId(ENV.ownerOpenId)) ?? null;
   }
 
