@@ -945,7 +945,17 @@ export async function startImport(userId: number, collectionId: number, urls: st
     }
   }
   await db.update(collections).set({ importStatus: "importing" }).where(eq(collections.id, collectionId));
-  return runNextImportBatch(userId, batchId);
+  return runImportBatchToCompletion(userId, batchId);
+}
+
+export async function runImportBatchToCompletion(userId: number, batchId: number, maxPages = Number(process.env.CAIRN_IMPORT_AUTO_MAX_PAGES || 1000)) {
+  let result = await runNextImportBatch(userId, batchId);
+  let processedPages = result.processed + result.unchanged + result.failed;
+  while (!result.complete && processedPages < maxPages) {
+    result = await runNextImportBatch(userId, batchId);
+    processedPages += result.processed + result.unchanged + result.failed;
+  }
+  return result;
 }
 
 export async function runNextImportBatch(userId: number, batchId: number) {
