@@ -143,5 +143,4 @@ export async function invokeAI(messages: AIMessage[], options: { temperature?: n
   return result.response;
 }
 
-// Re-export types for backward compatibility
-export type { AIMessage, AIProvider, AIProviderConfig };
+// Types are already exported above, no need to re-export

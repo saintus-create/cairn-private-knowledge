@@ -18,7 +18,7 @@
  */
 
 // Define AIMessage locally to avoid circular import issues
-export type AIMessage = {
+type AIMessage = {
   role: "system" | "user" | "assistant";
   content: string;
 };
@@ -72,7 +72,7 @@ interface CachedResponse {
 /**
  * Request context for tracing
  */
-export interface AIRequestContext {
+interface AIRequestContext {
   requestId: string;
   timestamp: number;
   providerAttempts: Array<{
@@ -119,7 +119,7 @@ const responseCache = new Map<string, CachedResponse>();
 
 // Deduplication cache (prevent duplicate requests)
 const deduplicationCache = new Map<string, {
-  promise: Promise<string>;
+  promise: Promise<AIOrchestratorResult>;
   timestamp: number;
 }>();
 
@@ -439,7 +439,7 @@ async function invokeSingleProvider(
 /**
  * AI Orchestrator Options
  */
-export interface AIOrchestratorOptions {
+interface AIOrchestratorOptions {
   /** Maximum number of provider attempts (across all providers) */
   maxAttempts?: number;
   /** Temperature for AI responses (0-1) */
@@ -461,7 +461,7 @@ export interface AIOrchestratorOptions {
 /**
  * Result from AI Orchestrator
  */
-export interface AIOrchestratorResult {
+interface AIOrchestratorResult {
   /** The AI response */
   response: string;
   /** Whether the response came from cache */
@@ -854,4 +854,4 @@ export async function legacyInvokeAI(messages: AIMessage[], options: { temperatu
 export { invokeAIOrchestrator as invokeAI };
 
 // Export types
-export type { AIMessage };
+export type { AIOrchestratorResult, AIOrchestratorOptions, AIRequestContext };
