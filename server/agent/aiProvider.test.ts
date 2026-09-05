@@ -75,4 +75,31 @@ describe("Supreme AI Orchestrator", () => {
     expect(answer2.fromCache).toBe(true);
     expect(answer2.response).toBe("hello");
   }, 10000);
+
+  it("handles all providers failing gracefully", async () => {
+    const mockFetch = vi.fn()
+      .mockImplementation(() => 
+        Promise.reject(new Error('All providers down'))
+      );
+    
+    // Remove all API keys to ensure no providers are available
+    delete process.env.CAIRN_AI_API_KEY;
+    delete process.env.MISTRAL_API_KEY;
+    delete process.env.CODESTRAL_API_KEY;
+    delete process.env.GROQ_API_KEY;
+    delete process.env.HUGGINGFACE_API_KEY;
+    
+    globalThis.fetch = mockFetch;
+
+    const answer = await invokeAI([{ role: "user", content: "Hello" }], {
+      maxAttempts: 2,
+      maxRetries: 0,
+      globalTimeout: 2000,
+    });
+
+    expect(answer.response).toContain("unavailable");
+    expect(answer.fromCache).toBe(false);
+    expect(answer.errors.length).toBeGreaterThan(0);
+    expect(answer.provider).toBe("none");
+  }, 10000);
 });
