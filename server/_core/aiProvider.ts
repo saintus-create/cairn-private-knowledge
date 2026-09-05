@@ -1,3 +1,19 @@
+/**
+ * Legacy AI Provider Types
+ * 
+ * NOTE: For new implementations, use aiOrchestrator.ts which provides:
+ * - Multi-provider failover chain (7 providers)
+ * - Circuit breakers per provider
+ * - Response caching (5 min TTL)
+ * - Request deduplication (1 min window)
+ * - Exponential backoff retries (default 3)
+ * - Graceful degradation (never fails completely)
+ * - Timeout protection (60s default)
+ * - Health monitoring
+ * 
+ * This file is kept for backward compatibility.
+ */
+
 export type AIMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -16,6 +32,10 @@ function env(name: string): string {
   return process.env[name]?.trim() ?? "";
 }
 
+/**
+ * Get AI provider configuration (legacy)
+ * @deprecated Use aiOrchestrator.ts for new implementations
+ */
 export function getAIProviderConfig(): AIProviderConfig {
   const requestedProvider = env("CAIRN_AI_PROVIDER").toLowerCase() as AIProvider | "";
   const provider: AIProvider = requestedProvider ||
@@ -85,93 +105,43 @@ export function getAIProviderConfig(): AIProviderConfig {
     provider: "openrouter",
     baseUrl: env("CAIRN_AI_BASE_URL") || "https://openrouter.ai/api/v1",
     apiKey,
-    model: env("CAIRN_AI_MODEL") || "openrouter/free",
+    model: env("CAIRN_AI_MODEL") || "openai/gpt-4o-mini",
   };
 }
 
-export async function invokeAI(messages: AIMessage[], options: { temperature?: number } = {}) {
-  const config = getAIProviderConfig();
+/**
+ * Legacy invokeAI function
+ * 
+ * @deprecated Use the Supreme AI Orchestrator from aiOrchestrator.ts instead
+ * 
+ * The new orchestrator provides:
+ * - Automatic failover between all 6+ providers
+ * - Circuit breakers to prevent cascading failures
+ * - Response caching for cost savings and speed
+ * - Request deduplication to prevent duplicate calls
+ * - Exponential backoff retries
+ * - Graceful degradation when all providers fail
+ * - Comprehensive error tracking and logging
+ * - Timeout protection
+ * 
+ * For new code, import from aiOrchestrator.ts:
+ *   import { invokeAI } from "./aiOrchestrator";
+ */
+export async function invokeAI(messages: AIMessage[], options: { temperature?: number } = {}): Promise<string> {
+  // Delegate to the Supreme AI Orchestrator
+  const { invokeAI: supremeInvokeAI } = await import("./aiOrchestrator");
   
-  // Build the URL based on provider
-  let url: string;
-  let requestBody: unknown;
-  let headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${config.apiKey}`,
-    ...(process.env.CAIRN_AI_APP_URL
-      ? { "HTTP-Referer": process.env.CAIRN_AI_APP_URL }
-      : {}),
-    ...(process.env.CAIRN_AI_APP_NAME
-      ? { "X-Title": process.env.CAIRN_AI_APP_NAME }
-      : { "X-Title": "Cairn" }),
-  };
-
-  if (config.provider === "huggingface") {
-    // Hugging Face inference API for chat/text generation
-    // Some models support /chat/completions, others need /models/{model}/chat/completions
-    // or the text generation endpoint
-    const modelPath = config.model.replace(/\//g, "%2F"); // URL encode slashes
-    url = `${config.baseUrl.replace(/\/$/, "")}/models/${modelPath}`;
-    
-    // Convert messages to Hugging Face chat format or text prompt
-    const lastUserMessage = messages.filter(m => m.role === "user").at(-1)?.content || "";
-    const systemPrompt = messages.filter(m => m.role === "system").at(-1)?.content || "";
-    
-    // Try OpenAI-compatible chat endpoint first for Hugging Face
-    // If that fails, fall back to text generation
-    requestBody = {
-      messages,
-      temperature: options.temperature ?? 0.2,
-      max_tokens: 1024,
-    };
-  } else {
-    // OpenAI-compatible providers (OpenRouter, Mistral, Codestral, Groq, Custom)
-    url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`;
-    requestBody = {
-      model: config.model,
-      messages,
-      temperature: options.temperature ?? 0.2,
-    };
-  }
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(requestBody),
+  const result = await supremeInvokeAI(messages, {
+    ...options,
+    enableCache: true,
+    enableDeduplication: true,
+    maxAttempts: 20, // Try hard - up to 20 provider attempts
+    maxRetries: 3,
+    timeout: 60000,
   });
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`AI provider returned ${response.status}: ${detail.slice(0, 500)}`);
-  }
-
-  const payload = await response.json();
-  let content: string;
-
-  if (config.provider === "huggingface") {
-    // Hugging Face response format
-    // Could be OpenAI-compatible { choices: [{ message: { content } }] }
-    // or Hugging Face format { generated_text: "..." } or [ { generated_text: "..." } ]
-    if (Array.isArray(payload)) {
-      // Text generation response: [ { generated_text: "..." } ]
-      content = payload[0]?.generated_text as string;
-    } else if (typeof payload === "object" && payload && "generated_text" in payload) {
-      // Single text generation response: { generated_text: "..." }
-      content = (payload as { generated_text?: string }).generated_text as string;
-    } else if (typeof payload === "object" && payload && "choices" in payload) {
-      // OpenAI-compatible chat response
-      content = (payload as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content as string;
-    } else {
-      throw new Error(`Unexpected Hugging Face response format: ${JSON.stringify(payload).slice(0, 200)}`);
-    }
-  } else {
-    // OpenAI-compatible response format
-    content = (payload as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content as string;
-  }
-
-  if (typeof content !== "string" || !content.trim()) {
-    throw new Error("AI provider returned no usable response.");
-  }
-
-  return content.trim();
+  
+  return result.response;
 }
+
+// Re-export types for backward compatibility
+export type { AIMessage, AIProvider, AIProviderConfig };
