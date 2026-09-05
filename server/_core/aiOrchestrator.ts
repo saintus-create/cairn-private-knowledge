@@ -1,11 +1,8 @@
 /**
- * Cairn Supreme AI Orchestrator
+ * Cairn AI Orchestrator
  * 
- * THE ONE AI TO RULE THEM ALL
- * 
- * This is the ultimate, unbreakable AI command center.
- * It orchestrates all providers in a failover chain,
- * retries intelligently, caches responses, and NEVER fails.
+ * Multi-provider AI interface with automatic failover, 
+ * circuit breakers, caching, and graceful degradation.
  * 
  * Features:
  * - Multi-provider failover chain
@@ -18,7 +15,6 @@
  * 
  * Usage:
  *   const response = await invokeAI(messages);
- *   // Always returns a string, never throws (unless truly unrecoverable)
  */
 
 // Define AIMessage locally to avoid circular import issues
@@ -441,7 +437,7 @@ async function invokeSingleProvider(
 // ============================================================================
 
 /**
- * Supreme AI Orchestrator Options
+ * AI Orchestrator Options
  */
 export interface AIOrchestratorOptions {
   /** Maximum number of provider attempts (across all providers) */
@@ -483,23 +479,22 @@ export interface AIOrchestratorResult {
 }
 
 /**
- * THE SUPREME AI INTERFACE
+ * Main AI invocation function
  * 
- * This is the ONE function to rule all AI providers.
- * It will try every available provider in priority order,
- * with retries, circuit breakers, and graceful degradation.
+ * Attempts all available providers in priority order with
+ * retries, circuit breakers, and graceful degradation.
  * 
  * @param messages - The chat messages
  * @param options - Orchestrator options
- * @returns Promise<AIOrchestratorResult> - ALWAYS resolves, never rejects
+ * @returns Promise<AIOrchestratorResult> - Resolves with response or graceful error
  */
-export async function supremeInvokeAI(
+async function invokeAIOrchestrator(
   messages: AIMessage[],
   options: AIOrchestratorOptions = {}
 ): Promise<AIOrchestratorResult> {
   const requestId = generateRequestId();
   const startTime = Date.now();
-  const maxAttempts = options.maxAttempts ?? providers.length * 2; // Try each provider twice
+  const maxAttempts = options.maxAttempts ?? providers.length * 2;
   const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
   const enableCache = options.enableCache ?? true;
   const enableDeduplication = options.enableDeduplication ?? true;
@@ -514,7 +509,7 @@ export async function supremeInvokeAI(
   if (enableDeduplication) {
     const existingRequest = deduplicationCache.get(requestHash);
     if (existingRequest && Date.now() - existingRequest.timestamp < DEDUPLICATION_WINDOW_MS) {
-      // Return the same promise
+      // Return cached promise
       const result = await existingRequest.promise;
       return {
         ...result,
@@ -556,7 +551,7 @@ export async function supremeInvokeAI(
     .sort((a, b) => a.priority - b.priority);
   
   if (activeProviders.length === 0) {
-    // All providers are down - return graceful degradation
+    // No providers available - return graceful degradation
     return {
       response: "I apologize, but all AI providers are currently unavailable. Please try again later.",
       fromCache: false,
@@ -593,7 +588,7 @@ export async function supremeInvokeAI(
   if (enableDeduplication) {
     // Don't pass enableDeduplication to avoid infinite loop
     const dedupOptions = { ...options, enableDeduplication: false };
-    deduplicationPromise = supremeInvokeAI(messages, dedupOptions);
+    deduplicationPromise = invokeAIOrchestrator(messages, dedupOptions);
     deduplicationCache.set(requestHash, {
       promise: deduplicationPromise,
       timestamp: Date.now(),
@@ -848,16 +843,15 @@ export function clearAllCaches(): void {
 
 /**
  * Legacy invokeAI function for backward compatibility
- * This now delegates to the Supreme Orchestrator
+ * This now delegates to the AI Orchestrator
  */
 export async function legacyInvokeAI(messages: AIMessage[], options: { temperature?: number } = {}): Promise<string> {
-  const result = await supremeInvokeAI(messages, { ...options, enableCache: false });
+  const result = await invokeAIOrchestrator(messages, { ...options, enableCache: false });
   return result.response;
 }
 
-// Main export - the Supreme AI Interface
-// This is the ONE function to rule all AI providers
-export { supremeInvokeAI as invokeAI };
+// Main export - invokeAI is the primary interface
+export { invokeAIOrchestrator as invokeAI };
 
 // Export types
 export type { AIMessage };

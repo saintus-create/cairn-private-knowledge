@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invokeAI, clearAllCaches } from "../_core/aiOrchestrator";
 
-describe("Supreme AI Orchestrator", () => {
+describe("AI Orchestrator", () => {
   const originalFetch = globalThis.fetch;
   const originalEnv = { ...process.env };
 

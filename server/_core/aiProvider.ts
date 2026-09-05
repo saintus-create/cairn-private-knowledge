@@ -1,13 +1,13 @@
 /**
  * Legacy AI Provider Types
  * 
- * NOTE: For new implementations, use aiOrchestrator.ts which provides:
- * - Multi-provider failover chain (7 providers)
+ * For new implementations, use aiOrchestrator.ts which provides:
+ * - Multi-provider failover chain
  * - Circuit breakers per provider
  * - Response caching (5 min TTL)
  * - Request deduplication (1 min window)
  * - Exponential backoff retries (default 3)
- * - Graceful degradation (never fails completely)
+ * - Graceful degradation
  * - Timeout protection (60s default)
  * - Health monitoring
  * 
@@ -112,23 +112,23 @@ export function getAIProviderConfig(): AIProviderConfig {
 /**
  * Legacy invokeAI function
  * 
- * @deprecated Use the Supreme AI Orchestrator from aiOrchestrator.ts instead
+ * @deprecated Use the AI Orchestrator from aiOrchestrator.ts instead
  * 
- * The new orchestrator provides:
- * - Automatic failover between all 6+ providers
+ * The orchestrator provides:
+ * - Automatic failover between all providers
  * - Circuit breakers to prevent cascading failures
  * - Response caching for cost savings and speed
  * - Request deduplication to prevent duplicate calls
  * - Exponential backoff retries
  * - Graceful degradation when all providers fail
- * - Comprehensive error tracking and logging
+ * - Comprehensive error tracking
  * - Timeout protection
  * 
  * For new code, import from aiOrchestrator.ts:
  *   import { invokeAI } from "./aiOrchestrator";
  */
 export async function invokeAI(messages: AIMessage[], options: { temperature?: number } = {}): Promise<string> {
-  // Delegate to the Supreme AI Orchestrator
+  // Delegate to the AI Orchestrator
   const { invokeAI: supremeInvokeAI } = await import("./aiOrchestrator");
   
   const result = await supremeInvokeAI(messages, {
