@@ -21,7 +21,11 @@
  *   // Always returns a string, never throws (unless truly unrecoverable)
  */
 
-import { AIMessage } from "./aiProvider";
+// Define AIMessage locally to avoid circular import issues
+export type AIMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
 
 // ============================================================================
 // TYPES
