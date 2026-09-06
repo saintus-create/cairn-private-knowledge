@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { parseEpistemicJson, runEpistemicPipeline } from "./epistemicReasoner";
 
 const evidence = [
@@ -19,8 +20,14 @@ const evidence = [
 ];
 
 describe("epistemic reasoning", () => {
-  it("parses fenced JSON and rejects malformed epistemic payloads", () => {
-    expect(parseEpistemicJson('```json\n{"answer":"ok"}\n```', null as never)).toBeNull();
+  it("parses fenced JSON", () => {
+    const schema = z.object({ answer: z.string() });
+    expect(parseEpistemicJson('```json\n{"answer":"ok"}\n```', schema)).toEqual({ answer: "ok" });
+  });
+
+  it("rejects malformed JSON", () => {
+    const schema = z.object({ answer: z.string() });
+    expect(parseEpistemicJson("not json", schema)).toBeNull();
   });
 
   it("runs analyst, critic, adjudicator, and synthesis stages", async () => {
