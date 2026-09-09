@@ -25,3 +25,17 @@ export const ENV = {
   forgeApiUrl: legacyForgeUrl,
   forgeApiKey: legacyForgeKey,
 };
+
+export function productionConfigIssues(input: NodeJS.ProcessEnv = process.env): string[] {
+  const issues: string[] = [];
+  if (!input.DATABASE_URL?.trim()) issues.push("DATABASE_URL is required.");
+  const jwtSecret = input.JWT_SECRET?.trim() ?? "";
+  if (!jwtSecret) issues.push("JWT_SECRET is required.");
+  else if (jwtSecret.length < 32) issues.push("JWT_SECRET must be at least 32 characters.");
+  else if (/replace_with|change-this|your[_-]?secret/i.test(jwtSecret)) issues.push("JWT_SECRET must be replaced with a generated secret.");
+  if (input.CAIRN_SINGLE_OWNER_MODE === "false") {
+    if (!input.OAUTH_SERVER_URL?.trim()) issues.push("OAUTH_SERVER_URL is required when single-owner mode is disabled.");
+    if (!input.VITE_APP_ID?.trim()) issues.push("VITE_APP_ID is required when single-owner mode is disabled.");
+  }
+  return issues;
+}

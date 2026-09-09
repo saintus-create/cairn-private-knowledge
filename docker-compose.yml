@@ -18,10 +18,10 @@ services:
       # Required
       - NODE_ENV=production
       - PORT=3000
-      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
       
       # Database (adjust for your setup)
-      - DATABASE_URL=${DATABASE_URL:-mysql://cairn:password@db:3306/cairn}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL must be set}
       
       # AI Provider Configuration
       - CAIRN_AI_PROVIDER=${CAIRN_AI_PROVIDER:-huggingface}
@@ -48,7 +48,7 @@ services:
     networks:
       - cairn-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -60,14 +60,14 @@ services:
     container_name: cairn-db
     restart: unless-stopped
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root-password}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
       - MYSQL_DATABASE=cairn
       - MYSQL_USER=cairn
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-password}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     networks:
       - cairn-network
     healthcheck:
@@ -82,7 +82,7 @@ services:
     container_name: cairn-adminer
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     networks:
       - cairn-network
     depends_on:

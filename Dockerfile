@@ -11,7 +11,7 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # Copy package files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile --only production
@@ -31,7 +31,7 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # Copy package files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml ./
 
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --only production
@@ -56,7 +56,7 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Start the application
 CMD ["node", "dist/index.js"]

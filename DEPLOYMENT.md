@@ -28,7 +28,7 @@ Edit `.env` with your production settings:
 
 ```bash
 # Required
-JWT_SECRET=your_strong_secret_here
+JWT_SECRET=your_strong_secret_here_at_least_32_characters
 DATABASE_URL=mysql://user:password@host:port/database
 CAIRN_AI_PROVIDER=huggingface  # or mistral, codestral, groq, openrouter
 HUGGINGFACE_API_KEY=your_hf_token  # or appropriate key for your provider
@@ -64,7 +64,16 @@ This creates optimized files in the `dist/` directory.
 NODE_ENV=production PORT=3000 pnpm start
 ```
 
-Cairn will be available at `http://localhost:3000`
+Cairn will be available at `http://localhost:3000`.
+
+Verify the process before putting it behind a proxy:
+
+```bash
+curl -f http://localhost:3000/health
+curl -f http://localhost:3000/ready
+```
+
+Production startup fails fast when `DATABASE_URL` or a sufficiently strong `JWT_SECRET` is missing. Multi-user mode also requires the OAuth settings shown above.
 
 ---
 

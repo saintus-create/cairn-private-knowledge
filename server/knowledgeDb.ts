@@ -11,7 +11,16 @@ import { planOfficialArchiveDelta } from "./primaryLawDelta";
 import { storageGetSignedUrl, storagePut } from "./storage";
 
 const require = createRequire(import.meta.url);
-const parsePdf = require("pdf-parse/lib/pdf-parse.js") as (buffer: Buffer) => Promise<{ text: string }>;
+const { PDFParse } = require("pdf-parse") as { PDFParse: new (options: { data: Buffer }) => { getText: () => Promise<{ text: string }>; destroy: () => Promise<void> } };
+
+async function parsePdf(buffer: Buffer) {
+  const parser = new PDFParse({ data: buffer });
+  try {
+    return await parser.getText();
+  } finally {
+    await parser.destroy();
+  }
+}
 
 const MAX_UPLOADED_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const SUPPORTED_DOCUMENT_TYPES = new Set(["application/pdf", "text/plain", "text/markdown"]);
