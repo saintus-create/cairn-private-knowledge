@@ -22,6 +22,11 @@ type Answer = {
   citations: Array<{ id: number; title: string; url: string; headingPath: string; excerpt: string; score: number }>;
   relatedEntries: Array<{ title: string; headingPath: string }>;
   synthesized: boolean;
+  researchTrace?: {
+    evidenceCount: number;
+    uncertaintyCount: number;
+    steps: Array<{ title: string; detail: string; status: "complete" | "next" }>;
+  };
 };
 
 type Proposal = {
@@ -80,6 +85,15 @@ function CitationList({ citations }: { citations: Answer["citations"] }) {
 function RelatedIndex({ entries, onChoose }: { entries: Answer["relatedEntries"]; onChoose: (entry: string) => void }) {
   if (!entries.length) return null;
   return <section className="mt-10"><p className="text-xs text-muted-foreground">Explore this collection</p><div className="mt-3">{entries.map((entry) => <button key={`${entry.title}-${entry.headingPath}`} onClick={() => onChoose(entry.title)} className="group flex w-full items-start gap-4 border-l border-white/15 py-4 pl-4 text-left transition-colors hover:border-[var(--accent-signal)]"><span className="min-w-0 flex-1"><span className="block text-base text-foreground">{entry.title}</span><span className="mt-1 block truncate text-sm text-muted-foreground">{entry.headingPath}</span></span><ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" /></button>)}</div></section>;
+}
+
+function ResearchTrace({ trace }: { trace: NonNullable<Answer["researchTrace"]> }) {
+  return <details className="mt-8 max-w-xl rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+    <summary className="cursor-pointer list-none text-xs font-medium text-muted-foreground">Research trace · {trace.evidenceCount} approved passages{trace.uncertaintyCount ? ` · ${trace.uncertaintyCount} open gap${trace.uncertaintyCount === 1 ? "" : "s"}` : ""}</summary>
+    <ol className="mt-4 space-y-4">
+      {trace.steps.map((step, index) => <li key={step.title} className="flex gap-3"><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] ${step.status === "next" ? "border border-[var(--accent-signal)] text-[var(--accent-signal)]" : "bg-white/10 text-muted-foreground"}`}>{step.status === "next" ? "→" : index + 1}</span><span><span className="block text-sm text-foreground">{step.title}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{step.detail}</span></span></li>)}
+    </ol>
+  </details>;
 }
 
 function PrimaryLawArchiveStatus({ archive }: { archive: SourceArchiveStatusInput | null | undefined }) {
@@ -425,7 +439,7 @@ export default function Home() {
             {turn.kind === "note" && <div className="max-w-xl border-l border-white/15 py-1 pl-4 text-sm leading-6 text-muted-foreground">{turn.text}</div>}
             {turn.kind === "starter" && <ResearchStarterCard topic={turn.topic} projectName={turn.projectName} onStartProject={() => { setNewProjectName(suggestedProjectName(turn.topic)); setNewProjectDescription(""); setProjectsOpen(true); setNewProjectOpen(true); }} onWebsite={() => { setCommand("https://"); setComposerMode("web"); }} onDocument={choosePrivateDocument} />}
             {turn.kind === "proposal" && <section className="max-w-2xl border-y border-white/10 py-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs text-muted-foreground">Source proposal</p><h2 className="mt-2 font-serif text-2xl tracking-tight">{turn.proposal.name}</h2><p className="mt-1 text-sm text-muted-foreground">{turn.proposal.host}</p></div><Sparkles className="mt-1 h-4 w-4 text-muted-foreground" /></div><p className="mt-5 max-w-xl text-[17px] leading-8">Cairn found {turn.proposal.estimatedPageCount} pages and prepared {Math.min(12, turn.proposal.urls.length)} bounded starting pages. The import stays within this site and preserves snapshots for later inspection.</p><div className="mt-6 flex flex-wrap gap-2"><button disabled={busy} onClick={() => approveProposal(turn.proposal)} className="inline-flex items-center gap-2 rounded-full bg-[var(--accent-signal)] px-4 py-2 text-sm text-[var(--accent-signal-foreground)] disabled:opacity-40"><Check className="h-3.5 w-3.5" /> Approve import</button><button onClick={() => setReviewOpen(true)} className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Review pages</button></div></section>}
-            {turn.kind === "answer" && <article className="max-w-2xl"><p className="text-xs text-muted-foreground">{turn.answer.status === "evidence" ? `Evidence from ${turn.answer.collection}` : "Evidence boundary"}</p><h2 className="mt-2 max-w-xl font-serif text-3xl leading-tight tracking-tight sm:text-4xl">{turn.question}</h2>{turn.answer.synthesized ? <div className="mt-6 max-w-xl"><p className="mb-3 text-xs text-muted-foreground">Source-backed answer</p><p className="text-[18px] leading-9 text-foreground">{turn.answer.answer}</p></div> : <div className="mt-6 max-w-xl"><p className="mb-3 text-xs text-muted-foreground">Supporting passages</p><div className="space-y-5 text-[18px] leading-9 text-foreground">{turn.answer.status === "evidence" ? turn.answer.citations.map((citation, index) => <p key={citation.id}>{citation.excerpt} <a href={citation.url} target="_blank" rel="noreferrer" className="ml-1 font-mono text-xs text-muted-foreground underline decoration-white/30 underline-offset-4 hover:text-foreground">[{index + 1}]</a></p>) : <p>{turn.answer.answer}</p>}</div></div>}{turn.answer.citations.length > 0 && <CitationList citations={turn.answer.citations} />}{turn.answer.relatedEntries.length > 0 && <RelatedIndex entries={turn.answer.relatedEntries} onChoose={setCommand} />}</article>}
+            {turn.kind === "answer" && <article className="max-w-2xl"><p className="text-xs text-muted-foreground">{turn.answer.status === "evidence" ? `Evidence from ${turn.answer.collection}` : "Evidence boundary"}</p><h2 className="mt-2 max-w-xl font-serif text-3xl leading-tight tracking-tight sm:text-4xl">{turn.question}</h2>{turn.answer.synthesized ? <div className="mt-6 max-w-xl"><p className="mb-3 text-xs text-muted-foreground">Source-backed answer</p><p className="text-[18px] leading-9 text-foreground">{turn.answer.answer}</p></div> : <div className="mt-6 max-w-xl"><p className="mb-3 text-xs text-muted-foreground">Supporting passages</p><div className="space-y-5 text-[18px] leading-9 text-foreground">{turn.answer.status === "evidence" ? turn.answer.citations.map((citation, index) => <p key={citation.id}>{citation.excerpt} <a href={citation.url} target="_blank" rel="noreferrer" className="ml-1 font-mono text-xs text-muted-foreground underline decoration-white/30 underline-offset-4 hover:text-foreground">[{index + 1}]</a></p>) : <p>{turn.answer.answer}</p>}</div></div>}{turn.answer.researchTrace && <ResearchTrace trace={turn.answer.researchTrace} />}{turn.answer.citations.length > 0 && <CitationList citations={turn.answer.citations} />}{turn.answer.relatedEntries.length > 0 && <RelatedIndex entries={turn.answer.relatedEntries} onChoose={setCommand} />}</article>}
           </div>)}
         </ConversationContent>
         <ConversationScrollButton />

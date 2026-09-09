@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   bootstrapCongressGovExpert: vi.fn(),
   listProjects: vi.fn(),
   answerFromProject: vi.fn(),
-  research: vi.fn(),
+  converseWithProject: vi.fn(),
 }));
 
 vi.mock("./knowledgeDb", () => ({
@@ -17,8 +17,8 @@ vi.mock("./knowledgeDb", () => ({
   answerFromProject: mocks.answerFromProject,
 }));
 
-vi.mock("./researchPipeline", () => ({
-  research: mocks.research,
+vi.mock("./cairnAgent", () => ({
+  converseWithProject: mocks.converseWithProject,
 }));
 
 import { projectsRouter } from "./routers/projects";
@@ -55,7 +55,7 @@ describe("projects router", () => {
   });
 
   it("runs the pinned research boundary for the authenticated owner", async () => {
-    mocks.research.mockResolvedValue({
+    mocks.converseWithProject.mockResolvedValue({
       status: "evidence",
       collection: "California law",
       answerMode: "extractive",
@@ -67,7 +67,7 @@ describe("projects router", () => {
     const caller = projectsRouter.createCaller(ctx);
 
     await expect(caller.answer({ projectId: 9, question: "What does this statute require?" })).resolves.toMatchObject({ status: "evidence", citations: [{ title: "Official source" }] });
-    expect(mocks.research).toHaveBeenCalledWith({ userId: 42, projectId: 9, query: "What does this statute require?" });
+    expect(mocks.converseWithProject).toHaveBeenCalledWith({ userId: 42, projectId: 9, question: "What does this statute require?", history: [] });
   });
 
   it("lists only the authenticated owner’s projects", async () => {
