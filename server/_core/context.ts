@@ -22,18 +22,22 @@ export async function createContext(
       await upsertUser({ openId: ENV.singleOwnerOpenId, name: "Cairn owner", role: "admin" });
       user = (await getUserByOpenId(ENV.singleOwnerOpenId)) ?? null;
     } else {
-      console.log("[Auth] Database not available, using synthetic single-owner user");
-      user = {
-        id: 1,
-        openId: ENV.singleOwnerOpenId,
-        name: "Cairn owner",
-        email: null,
-        loginMethod: null,
-        role: "admin",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastSignedIn: new Date(),
-      };
+      if (ENV.isProduction) {
+        console.error("[Auth] Production database unavailable; refusing synthetic authentication");
+      } else {
+        console.log("[Auth] Database not available, using synthetic single-owner user for local development");
+        user = {
+          id: 1,
+          openId: ENV.singleOwnerOpenId,
+          name: "Cairn owner",
+          email: null,
+          loginMethod: null,
+          role: "admin",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastSignedIn: new Date(),
+        };
+      }
     }
   }
 

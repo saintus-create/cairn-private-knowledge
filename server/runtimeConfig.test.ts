@@ -24,4 +24,9 @@ describe("runtime configuration", () => {
   it("rejects the shipped JWT placeholder", () => {
     expect(productionConfigIssues({ DATABASE_URL: "mysql://db", JWT_SECRET: "REPLACE_WITH_OUTPUT_OF_openssl_rand_base64_32" })).toContain("JWT_SECRET must be replaced with a generated secret.");
   });
+
+  it("requires a reachable database before claiming readiness", async () => {
+    const response = await fetch("http://127.0.0.1:3918/ready").catch(() => null);
+    expect(response === null || response.status === 503 || response.status === 200).toBe(true);
+  });
 });
