@@ -106,6 +106,8 @@ function PrimaryLawArchiveStatus({ archive }: { archive: SourceArchiveStatusInpu
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout, requestMagicLink, usesSupabase } = useAuth();
+  const directOwnerMode = import.meta.env.VITE_CAIRN_SINGLE_OWNER_MODE !== "false";
+  const canUseWorkspace = isAuthenticated || directOwnerMode;
   const [command, setCommand] = useState("");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
@@ -130,9 +132,9 @@ export default function Home() {
 
   const activeInput = useMemo(() => ({ collectionId: activeCollectionId ?? 0 }), [activeCollectionId]);
   const projectInput = useMemo(() => activeProjectId ? { projectId: activeProjectId } : undefined, [activeProjectId]);
-  const projects = trpc.projects.list.useQuery(undefined, { enabled: isAuthenticated });
-  const collections = trpc.collections.list.useQuery(projectInput, { enabled: isAuthenticated });
-  const detail = trpc.collections.get.useQuery(activeInput, { enabled: isAuthenticated && activeCollectionId !== null });
+  const projects = trpc.projects.list.useQuery(undefined, { enabled: canUseWorkspace });
+  const collections = trpc.collections.list.useQuery(projectInput, { enabled: canUseWorkspace });
+  const detail = trpc.collections.get.useQuery(activeInput, { enabled: canUseWorkspace && activeCollectionId !== null });
   const preview = trpc.collections.preview.useMutation();
   const create = trpc.collections.create.useMutation();
   const startImport = trpc.collections.startImport.useMutation();
@@ -148,7 +150,7 @@ export default function Home() {
   const busy = preview.isPending || create.isPending || createProject.isPending || bootstrapCaliforniaFamilyCode.isPending || bootstrapCongressGov.isPending || startImport.isPending || continueImport.isPending || refresh.isPending || updateProfile.isPending || answer.isPending || uploadDocument.isPending;
   const awake = turns.length > 0;
   const activeProject = useMemo(() => projects.data?.find((project) => project.id === activeProjectId) ?? projects.data?.[0], [activeProjectId, projects.data]);
-  const projectNeedsEvidence = Boolean(isAuthenticated && collections.isFetched && !collections.data?.length);
+  const projectNeedsEvidence = Boolean(canUseWorkspace && collections.isFetched && !collections.data?.length);
   const composerExpanded = !awake && command.trim().length > 0;
   const composerSuggestions = useMemo(() => getComposerSuggestions({ query: command, expanded: composerExpanded, collection: detail.data?.collection, pages: detail.data?.pages ?? [] }), [command, composerExpanded, detail.data?.collection, detail.data?.pages]);
 
@@ -211,7 +213,7 @@ export default function Home() {
   }
 
   function choosePrivateDocument() {
-    if (!isAuthenticated) { beginSignIn(); return; }
+    if (!canUseWorkspace) { beginSignIn(); return; }
     document.getElementById("private-document-input")?.click();
   }
 
@@ -291,7 +293,7 @@ export default function Home() {
   }
 
   async function importPrivateDocument(file: File) {
-    if (!isAuthenticated) { beginSignIn(); return; }
+    if (!canUseWorkspace) { beginSignIn(); return; }
     if (file.size > 20 * 1024 * 1024) { toast.error("Choose a document smaller than 20 MB."); return; }
     setUploadStage("Preparing file");
     try {
@@ -318,7 +320,7 @@ export default function Home() {
   async function interpretCommand() {
     const text = command.trim();
     if (!text || busy) return;
-    if (!isAuthenticated) { beginSignIn(); return; }
+    if (!canUseWorkspace) { beginSignIn(); return; }
     setComposerMode("idle");
     setCommand("");
     append({ id: id(), kind: "user", text });
@@ -425,13 +427,13 @@ export default function Home() {
     <header className="flex h-16 items-center justify-between px-5 sm:px-7">
       <button className="font-serif text-xl tracking-tight" onClick={() => { setTurns([]); setCommand(""); inputRef.current?.focus(); }}>Cairn</button>
       <nav className="flex items-center gap-1.5" aria-label="Cairn actions">
-        {isAuthenticated && <><button title="Switch project" aria-label="Switch project" onClick={() => setProjectsOpen(true)} className="inline-flex h-8 max-w-40 items-center gap-1.5 rounded-full border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{activeProject?.name ?? "Projects"}</span></button><button title="Upload document" aria-label="Upload document" onClick={choosePrivateDocument} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><FileUp className="h-3.5 w-3.5" /></button><button title="Sources" aria-label="Sources" onClick={() => setSourcesOpen(true)} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><LibraryBig className="h-3.5 w-3.5" /><span className="hidden sm:inline">Sources{collections.data?.length ? ` · ${collections.data.length}` : ""}</span></button></>}
+        {canUseWorkspace && <><button title="Switch project" aria-label="Switch project" onClick={() => setProjectsOpen(true)} className="inline-flex h-8 max-w-40 items-center gap-1.5 rounded-full border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{activeProject?.name ?? "Projects"}</span></button><button title="Upload document" aria-label="Upload document" onClick={choosePrivateDocument} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><FileUp className="h-3.5 w-3.5" /></button><button title="Sources" aria-label="Sources" onClick={() => setSourcesOpen(true)} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><LibraryBig className="h-3.5 w-3.5" /><span className="hidden sm:inline">Sources{collections.data?.length ? ` · ${collections.data.length}` : ""}</span></button></>}
         {!awake && <button title="Focus composer" aria-label="Focus composer" onClick={() => inputRef.current?.focus()} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-foreground"><Search className="h-4 w-4" /></button>}
         {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       </nav>
     </header>
 
-    {!awake ? <><main className="mx-auto flex h-[calc(100svh-16rem)] w-full max-w-2xl flex-col items-center justify-center px-6 pb-10 text-center"><h1 className="enter-up max-w-xl text-4xl font-medium tracking-[-0.04em] text-foreground sm:text-6xl">What can I help with?</h1></main><div className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:bottom-6 sm:px-7 sm:pb-0"><div className="mx-auto w-full max-w-2xl"><div className="mb-3 flex justify-center"><FirstUseStrip onAsk={() => inputRef.current?.focus()} onProject={() => isAuthenticated ? setProjectsOpen(true) : beginSignIn()} onSource={() => isAuthenticated ? choosePrivateDocument() : beginSignIn()} /></div><div className={`mb-2 space-y-1.5 transition-[max-height,opacity,transform] duration-200 ease-out ${composerSuggestions.length ? "max-h-56 translate-y-0 opacity-100" : "max-h-0 translate-y-2 overflow-hidden opacity-0"}`}>{composerSuggestions.map((suggestion) => <button key={`${suggestion.label}-${suggestion.detail}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCommand(suggestion.command); inputRef.current?.focus(); }} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-background/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{suggestion.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></button>)}</div><CommandBar inputRef={inputRef} expanded={composerExpanded} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} mode={composerMode} onModeChange={setComposerMode} onUpload={choosePrivateDocument} onWebSource={() => { setCommand("https://"); setComposerMode("idle"); inputRef.current?.focus(); }} onSources={() => isAuthenticated ? setSourcesOpen(true) : beginSignIn()} onProjects={() => isAuthenticated ? setProjectsOpen(true) : beginSignIn()} projectLabel={activeProject?.name} /></div></div></> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
+    {!awake ? <><main className="mx-auto flex h-[calc(100svh-16rem)] w-full max-w-2xl flex-col items-center justify-center px-6 pb-10 text-center"><h1 className="enter-up max-w-xl text-4xl font-medium tracking-[-0.04em] text-foreground sm:text-6xl">What can I help with?</h1></main><div className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:bottom-6 sm:px-7 sm:pb-0"><div className="mx-auto w-full max-w-2xl"><div className="mb-3 flex justify-center"><FirstUseStrip onAsk={() => inputRef.current?.focus()} onProject={() => canUseWorkspace ? setProjectsOpen(true) : beginSignIn()} onSource={() => canUseWorkspace ? choosePrivateDocument() : beginSignIn()} /></div><div className={`mb-2 space-y-1.5 transition-[max-height,opacity,transform] duration-200 ease-out ${composerSuggestions.length ? "max-h-56 translate-y-0 opacity-100" : "max-h-0 translate-y-2 overflow-hidden opacity-0"}`}>{composerSuggestions.map((suggestion) => <button key={`${suggestion.label}-${suggestion.detail}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCommand(suggestion.command); inputRef.current?.focus(); }} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-background/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{suggestion.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></button>)}</div><CommandBar inputRef={inputRef} expanded={composerExpanded} value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} mode={composerMode} onModeChange={setComposerMode} onUpload={choosePrivateDocument} onWebSource={() => { setCommand("https://"); setComposerMode("idle"); inputRef.current?.focus(); }} onSources={() => canUseWorkspace ? setSourcesOpen(true) : beginSignIn()} onProjects={() => canUseWorkspace ? setProjectsOpen(true) : beginSignIn()} projectLabel={activeProject?.name} /></div></div></> : <main className="mx-auto flex h-[calc(100dvh-56px)] w-full max-w-3xl flex-col px-5 sm:px-7">
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="mx-auto w-full max-w-2xl space-y-7 py-8 sm:py-12">
           {turns.map((turn) => <div key={turn.id} className="animate-in fade-in slide-in-from-bottom-1 duration-200">
@@ -444,7 +446,7 @@ export default function Home() {
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <div className="border-t border-border py-4"><CommandBar compact value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} mode={composerMode} onModeChange={setComposerMode} onUpload={choosePrivateDocument} onWebSource={() => { setCommand("https://"); setComposerMode("idle"); inputRef.current?.focus(); }} onSources={() => isAuthenticated ? setSourcesOpen(true) : beginSignIn()} onProjects={() => isAuthenticated ? setProjectsOpen(true) : beginSignIn()} projectLabel={activeProject?.name} /></div>
+      <div className="border-t border-border py-4"><CommandBar compact value={command} onChange={setCommand} onSubmit={interpretCommand} busy={busy} mode={composerMode} onModeChange={setComposerMode} onUpload={choosePrivateDocument} onWebSource={() => { setCommand("https://"); setComposerMode("idle"); inputRef.current?.focus(); }} onSources={() => canUseWorkspace ? setSourcesOpen(true) : beginSignIn()} onProjects={() => canUseWorkspace ? setProjectsOpen(true) : beginSignIn()} projectLabel={activeProject?.name} /></div>
     </main>}
 
     {projectsOpen && <aside className="fixed bottom-4 left-4 right-4 z-[60] mx-auto max-w-md rounded-2xl border border-border bg-[var(--composer-surface)]/95 p-3 text-[var(--composer-foreground)] shadow-xl backdrop-blur-sm sm:left-auto sm:right-6 sm:bottom-6" aria-label="Additional official expert">
