@@ -73,7 +73,7 @@
     "react-resizable-panels": "^3.0.6",
     "recharts": "^2.15.4",
     "sonner": "^2.0.8",
-    "streamdown": "^1.4.0",
+    "streamdown": "^2.6.0",
     "superjson": "^2.2.6",
     "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7",
